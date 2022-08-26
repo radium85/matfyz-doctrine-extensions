@@ -153,9 +153,21 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
         $collection = $dm->getDocumentCollection($meta->name);
         $data = array();
 
+        // Vygenerovat id entity, pokud neexistuje
+        $persister = $dm->getUnitOfWork()->getEntityPersister(get_class($translation));
+        $idGenerator    = $persister->getClassMetadata()->idGenerator;
+        $id = null;
+        if ( ! $idGenerator->isPostInsertGenerator()) {
+            $id = $idGenerator->generate($dm, $translation);
+        }
+
         foreach ($meta->getReflectionProperties() as $fieldName => $reflProp) {
             if (!$meta->isIdentifier($fieldName)) {
                 $data[$meta->fieldMappings[$fieldName]['name']] = $reflProp->getValue($translation);
+            } else {
+                if (!isset($data[$meta->getColumnName($fieldName)])) {
+                    $data[$meta->getColumnName($fieldName)] = $id;
+                }
             }
         }
 

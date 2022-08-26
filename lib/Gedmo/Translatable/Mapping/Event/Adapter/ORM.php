@@ -217,9 +217,21 @@ final class ORM extends BaseAdapterORM implements TranslatableAdapter
         $meta = $em->getClassMetadata(get_class($translation));
         $data = array();
 
+        // Vygenerovat id entity, pokud neexistuje
+        $persister = $em->getUnitOfWork()->getEntityPersister(get_class($translation));
+        $idGenerator    = $persister->getClassMetadata()->idGenerator;
+        $id = null;
+        if ( ! $idGenerator->isPostInsertGenerator()) {
+            $id = $idGenerator->generate($em, $translation);
+        }
+
         foreach ($meta->getReflectionProperties() as $fieldName => $reflProp) {
             if (!$meta->isIdentifier($fieldName)) {
                 $data[$meta->getColumnName($fieldName)] = $reflProp->getValue($translation);
+            } else {
+                if (!isset($data[$meta->getColumnName($fieldName)])) {
+                    $data[$meta->getColumnName($fieldName)] = $id;
+                }
             }
         }
 
