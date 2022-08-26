@@ -1,21 +1,11 @@
 <?php
 
-/*
- * This file is part of the Doctrine Behavioral Extensions package.
- * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
 namespace Gedmo\Translatable\Mapping\Event\Adapter;
 
-use Doctrine\ODM\MongoDB\Iterator\Iterator;
-use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
-use Doctrine\ODM\MongoDB\Types\Type;
 use Gedmo\Mapping\Event\Adapter\ODM as BaseAdapterODM;
 use Gedmo\Tool\Wrapper\AbstractWrapper;
-use Gedmo\Translatable\Document\MappedSuperclass\AbstractPersonalTranslation;
-use Gedmo\Translatable\Document\Translation;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadataInfo;
+use Doctrine\ODM\MongoDB\Cursor;
 use Gedmo\Translatable\Mapping\Event\TranslatableAdapter;
 
 /**
@@ -23,46 +13,56 @@ use Gedmo\Translatable\Mapping\Event\TranslatableAdapter;
  * for Translatable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
 final class ODM extends BaseAdapterODM implements TranslatableAdapter
 {
+    /**
+     * {@inheritDoc}
+     */
     public function usesPersonalTranslation($translationClassName)
     {
         return $this
             ->getObjectManager()
             ->getClassMetadata($translationClassName)
             ->getReflectionClass()
-            ->isSubclassOf(AbstractPersonalTranslation::class)
+            ->isSubclassOf('Gedmo\Translatable\Document\MappedSuperclass\AbstractPersonalTranslation')
         ;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getDefaultTranslationClass()
     {
-        return Translation::class;
+        return 'Gedmo\\Translatable\\Document\\Translation';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function loadTranslations($object, $translationClass, $locale, $objectClass)
     {
         $dm = $this->getObjectManager();
         $wrapped = AbstractWrapper::wrap($object, $dm);
-        $result = [];
+        $result = array();
 
         if ($this->usesPersonalTranslation($translationClass)) {
             // first try to load it using collection
             foreach ($wrapped->getMetadata()->fieldMappings as $mapping) {
                 $isRightCollection = isset($mapping['association'])
-                    && ClassMetadata::REFERENCE_MANY === $mapping['association']
+                    && $mapping['association'] === ClassMetadataInfo::REFERENCE_MANY
                     && $mapping['targetDocument'] === $translationClass
-                    && 'object' === $mapping['mappedBy']
+                    && $mapping['mappedBy'] === 'object'
                 ;
                 if ($isRightCollection) {
                     $collection = $wrapped->getPropertyValue($mapping['fieldName']);
                     foreach ($collection as $trans) {
                         if ($trans->getLocale() === $locale) {
-                            $result[] = [
+                            $result[] = array(
                                 'field' => $trans->getField(),
                                 'content' => $trans->getContent(),
-                            ];
+                            );
                         }
                     }
 
@@ -88,13 +88,16 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
         }
         $q->setHydrate(false);
         $result = $q->execute();
-        if ($result instanceof Iterator) {
+        if ($result instanceof Cursor) {
             $result = $result->toArray();
         }
 
         return $result;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findTranslation(AbstractWrapper $wrapped, $locale, $field, $translationClass, $objectClass)
     {
         $dm = $this->getObjectManager();
@@ -111,10 +114,17 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
             $qb->field('objectClass')->equals($objectClass);
         }
         $q = $qb->getQuery();
+        $result = $q->execute();
+        if ($result instanceof Cursor) {
+            $result = current($result->toArray());
+        }
 
-        return $q->getSingleResult();
+        return $result;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function removeAssociatedTranslations(AbstractWrapper $wrapped, $transClass, $objectClass)
     {
         $dm = $this->getObjectManager();
@@ -133,26 +143,42 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
         return $q->execute();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function insertTranslationRecord($translation)
     {
         $dm = $this->getObjectManager();
         $meta = $dm->getClassMetadata(get_class($translation));
-        $collection = $dm->getDocumentCollection($meta->getName());
-        $data = [];
+        $collection = $dm->getDocumentCollection($meta->name);
+        $data = array();
+
+        // Vygenerovat id entity, pokud neexistuje
+        $persister = $dm->getUnitOfWork()->getEntityPersister(get_class($translation));
+        $idGenerator    = $persister->getClassMetadata()->idGenerator;
+        $id = null;
+        if ( ! $idGenerator->isPostInsertGenerator()) {
+            $id = $idGenerator->generate($dm, $translation);
+        }
 
         foreach ($meta->getReflectionProperties() as $fieldName => $reflProp) {
             if (!$meta->isIdentifier($fieldName)) {
-                $data[$meta->getFieldMapping($fieldName)['name']] = $reflProp->getValue($translation);
+                $data[$meta->fieldMappings[$fieldName]['name']] = $reflProp->getValue($translation);
+            } else {
+                if (!isset($data[$meta->getColumnName($fieldName)])) {
+                    $data[$meta->getColumnName($fieldName)] = $id;
+                }
             }
         }
 
-        $insertResult = $collection->insertOne($data);
-
-        if (false === $insertResult->isAcknowledged()) {
+        if (!$collection->insert($data)) {
             throw new \Gedmo\Exception\RuntimeException('Failed to insert new Translation record');
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getTranslationValue($object, $field, $value = false)
     {
         $dm = $this->getObjectManager();
@@ -160,13 +186,16 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
         $meta = $wrapped->getMetadata();
         $mapping = $meta->getFieldMapping($field);
         $type = $this->getType($mapping['type']);
-        if (false === $value) {
+        if ($value === false) {
             $value = $wrapped->getPropertyValue($field);
         }
 
         return $type->convertToDatabaseValue($value);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function setTranslationValue($object, $field, $value)
     {
         $dm = $this->getObjectManager();
@@ -179,8 +208,10 @@ final class ODM extends BaseAdapterODM implements TranslatableAdapter
         $wrapped->setPropertyValue($field, $value);
     }
 
-    private function getType(string $type): Type
+    private function getType($type)
     {
-        return Type::getType($type);
+        // due to change in ODM beta 9
+        return class_exists('Doctrine\ODM\MongoDB\Types\Type') ? \Doctrine\ODM\MongoDB\Types\Type::getType($type)
+            : \Doctrine\ODM\MongoDB\Mapping\Types\Type::getType($type);
     }
 }

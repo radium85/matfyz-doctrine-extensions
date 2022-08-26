@@ -1,32 +1,13 @@
 <?php
 
-/*
- * This file is part of the Doctrine Behavioral Extensions package.
- * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
- * For the full copyright and license information, please view the LICENSE
- * file that was distributed with this source code.
- */
-
 namespace Gedmo\Mapping;
 
-use function class_exists;
-
-use Doctrine\Common\Annotations\AnnotationReader;
-use Doctrine\Common\Annotations\AnnotationRegistry;
-use Doctrine\Common\Annotations\PsrCachedReader;
 use Doctrine\Common\Annotations\Reader;
 use Doctrine\Common\Cache\ArrayCache;
-use Doctrine\Common\Cache\Psr6\CacheAdapter;
-use Doctrine\Common\EventArgs;
 use Doctrine\Common\EventSubscriber;
-use Doctrine\ODM\MongoDB\DocumentManager;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\Persistence\Mapping\AbstractClassMetadataFactory;
-use Doctrine\Persistence\Mapping\ClassMetadata;
-use Doctrine\Persistence\ObjectManager;
-use Gedmo\Mapping\Event\AdapterInterface;
-use Psr\Cache\CacheItemPoolInterface;
-use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Doctrine\Common\Persistence\ObjectManager;
+use Doctrine\Common\EventArgs;
+use Gedmo\Exception\InvalidArgumentException;
 
 /**
  * This is extension of event subscriber class and is
@@ -38,6 +19,7 @@ use Symfony\Component\Cache\Adapter\ArrayAdapter;
  * extended drivers
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
 abstract class MappedEventSubscriber implements EventSubscriber
 {
@@ -47,9 +29,8 @@ abstract class MappedEventSubscriber implements EventSubscriber
      * other listener configuration
      *
      * @var array
-     * @phpstan-var array<string, array<class-string, array<string, mixed>>>
      */
-    protected static $configurations = [];
+    protected static $configurations = array();
 
     /**
      * Listener name, etc: sluggable
@@ -59,19 +40,27 @@ abstract class MappedEventSubscriber implements EventSubscriber
     protected $name;
 
     /**
+     * Filters to ignore during processing
+     * Should be set in extended listener class
+     *
+     * @var array
+     */
+    protected $ignoredFilters = array();
+
+    /**
      * ExtensionMetadataFactory used to read the extension
      * metadata through the extension drivers
      *
-     * @var array<int, ExtensionMetadataFactory>
+     * @var ExtensionMetadataFactory
      */
-    private $extensionMetadataFactory = [];
+    private $extensionMetadataFactory = array();
 
     /**
      * List of event adapters used for this listener
      *
-     * @var array<string, AdapterInterface>
+     * @var array
      */
-    private $adapters = [];
+    private $adapters = array();
 
     /**
      * Custom annotation reader
@@ -81,15 +70,21 @@ abstract class MappedEventSubscriber implements EventSubscriber
     private $annotationReader;
 
     /**
-     * @var AnnotationReader
+     * A list of filters which were disabled by listener
+     * to maintain valid state
+     *
+     * @var array
+     */
+    private $disabledFilters = array();
+
+    /**
+     * @var \Doctrine\Common\Annotations\AnnotationReader
      */
     private static $defaultAnnotationReader;
 
     /**
-     * @var CacheItemPoolInterface|null
+     * Constructor
      */
-    private $cacheItemPool;
-
     public function __construct()
     {
         $parts = explode('\\', $this->getNamespace());
@@ -97,41 +92,133 @@ abstract class MappedEventSubscriber implements EventSubscriber
     }
 
     /**
+     * Add a filter to ignored list
+     *
+     * @param string $filterClassName
+     */
+    public function addFilterToIgnore($filterClassName)
+    {
+        $this->ignoredFilters[] = $filterClassName;
+    }
+
+    /**
+     * Disables filters by class name specified in $this->ignoredFilters
+     *
+     * @param ObjectManager $om
+     */
+    protected function disableFilters($om)
+    {
+        if ($this->ignoredFilters) {
+            $filters = $this->getFilterCollectionFromObjectManager($om);
+            $enabled = $filters->getEnabledFilters();
+            foreach ($enabled as $name => $filter) {
+                foreach ($this->ignoredFilters as $filterClassName) {
+                    if (is_a($filter, $filterClassName)) {
+                        $filters->disable($name);
+                        $this->disabledFilters[] = $name;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if $filterClassName filter is enabled
+     *
+     * @param ObjectManager $om
+     * @param String $filterClassName
+     * @return boolean
+     */
+    protected function hasEnabledFilter($om, $filterClassName)
+    {
+        $enabled = $this->getFilterCollectionFromObjectManager($om)->getEnabledFilters();
+        foreach ($enabled as $name => $filter) {
+            if (is_a($filter, $filterClassName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * Enables back previously disabled filters by class name specified in $this->ignoredFilters
+     *
+     * @param ObjectManager $om
+     */
+    protected function enableFilters($om)
+    {
+        $filters = $this->getFilterCollectionFromObjectManager($om);
+        while ($name = array_pop($this->disabledFilters)) {
+            $filters->enable($name);
+        }
+    }
+
+    /**
+     * Get an event adapter to handle event specific
+     * methods
+     *
+     * @param EventArgs $args
+     *
+     * @throws \Gedmo\Exception\InvalidArgumentException - if event is not recognized
+     *
+     * @return \Gedmo\Mapping\Event\AdapterInterface
+     */
+    protected function getEventAdapter(EventArgs $args)
+    {
+        $class = get_class($args);
+        if (preg_match('@Doctrine\\\([^\\\]+)@', $class, $m) && in_array($m[1], array('ODM', 'ORM'))) {
+            if (!isset($this->adapters[$m[1]])) {
+                $adapterClass = $this->getNamespace().'\\Mapping\\Event\\Adapter\\'.$m[1];
+                if (!class_exists($adapterClass)) {
+                    $adapterClass = 'Gedmo\\Mapping\\Event\\Adapter\\'.$m[1];
+                }
+                $this->adapters[$m[1]] = new $adapterClass();
+            }
+            $this->adapters[$m[1]]->setEventArgs($args);
+
+            return $this->adapters[$m[1]];
+        } else {
+            throw new \Gedmo\Exception\InvalidArgumentException('Event mapper does not support event arg class: '.$class);
+        }
+    }
+
+    /**
      * Get the configuration for specific object class
      * if cache driver is present it scans it also
      *
-     * @param string $class
-     * @phpstan-param class-string $class
+     * @param ObjectManager $objectManager
+     * @param string        $class
      *
-     * @return array<string, mixed>
+     * @return array
      */
     public function getConfiguration(ObjectManager $objectManager, $class)
     {
+        $config = array();
         if (isset(self::$configurations[$this->name][$class])) {
-            return self::$configurations[$this->name][$class];
-        }
-
-        $config = [];
-
-        $cacheItemPool = $this->getCacheItemPool($objectManager);
-
-        $cacheId = ExtensionMetadataFactory::getCacheId($class, $this->getNamespace());
-        $cacheItem = $cacheItemPool->getItem($cacheId);
-
-        if ($cacheItem->isHit()) {
-            $config = $cacheItem->get();
-            self::$configurations[$this->name][$class] = $config;
+            $config = self::$configurations[$this->name][$class];
         } else {
-            // re-generate metadata on cache miss
-            $this->loadMetadataForObjectClass($objectManager, $objectManager->getClassMetadata($class));
-            if (isset(self::$configurations[$this->name][$class])) {
-                $config = self::$configurations[$this->name][$class];
-            }
-        }
+            $factory = $objectManager->getMetadataFactory();
+            $cacheDriver = $factory->getCacheDriver();
+            if ($cacheDriver) {
+                $cacheId = ExtensionMetadataFactory::getCacheId($class, $this->getNamespace());
+                if (($cached = $cacheDriver->fetch($cacheId)) !== false) {
+                    self::$configurations[$this->name][$class] = $cached;
+                    $config = $cached;
+                } else {
+                    // re-generate metadata on cache miss
+                    $this->loadMetadataForObjectClass($objectManager, $factory->getMetadataFor($class));
+                    if (isset(self::$configurations[$this->name][$class])) {
+                        $config = self::$configurations[$this->name][$class];
+                    }
+                }
 
-        $objectClass = $config['useObjectClass'] ?? $class;
-        if ($objectClass !== $class) {
-            $this->getConfiguration($objectManager, $objectClass);
+                $objectClass = isset($config['useObjectClass']) ? $config['useObjectClass'] : $class;
+                if ($objectClass !== $class) {
+                    $this->getConfiguration($objectManager, $objectClass);
+                }
+            }
         }
 
         return $config;
@@ -140,21 +227,22 @@ abstract class MappedEventSubscriber implements EventSubscriber
     /**
      * Get extended metadata mapping reader
      *
+     * @param ObjectManager $objectManager
+     *
      * @return ExtensionMetadataFactory
      */
     public function getExtensionMetadataFactory(ObjectManager $objectManager)
     {
-        $oid = spl_object_id($objectManager);
+        $oid = spl_object_hash($objectManager);
         if (!isset($this->extensionMetadataFactory[$oid])) {
-            if (null === $this->annotationReader) {
+            if (is_null($this->annotationReader)) {
                 // create default annotation reader for extensions
                 $this->annotationReader = $this->getDefaultAnnotationReader();
             }
             $this->extensionMetadataFactory[$oid] = new ExtensionMetadataFactory(
                 $objectManager,
                 $this->getNamespace(),
-                $this->annotationReader,
-                $this->getCacheItemPool($objectManager)
+                $this->annotationReader
             );
         }
 
@@ -170,68 +258,33 @@ abstract class MappedEventSubscriber implements EventSubscriber
      *     getPropertyAnnotations([reflectionProperty])
      *     getPropertyAnnotation([reflectionProperty], [name])
      *
-     * @param Reader $reader annotation reader class
-     *
-     * @return void
+     * @param Reader $reader - annotation reader class
      */
     public function setAnnotationReader($reader)
     {
         $this->annotationReader = $reader;
     }
 
-    final public function setCacheItemPool(CacheItemPoolInterface $cacheItemPool): void
-    {
-        $this->cacheItemPool = $cacheItemPool;
-    }
-
     /**
      * Scans the objects for extended annotations
      * event subscribers must subscribe to loadClassMetadata event
      *
-     * @param ClassMetadata $metadata
-     *
+     * @param  ObjectManager $objectManager
+     * @param  object        $metadata
      * @return void
      */
     public function loadMetadataForObjectClass(ObjectManager $objectManager, $metadata)
     {
         $factory = $this->getExtensionMetadataFactory($objectManager);
-
         try {
             $config = $factory->getExtensionMetadata($metadata);
         } catch (\ReflectionException $e) {
             // entity\document generator is running
-            $config = []; // will not store a cached version, to remap later
+            $config = false; // will not store a cached version, to remap later
         }
-        if ([] !== $config) {
-            self::$configurations[$this->name][$metadata->getName()] = $config;
+        if ($config) {
+            self::$configurations[$this->name][$metadata->name] = $config;
         }
-    }
-
-    /**
-     * Get an event adapter to handle event specific
-     * methods
-     *
-     * @throws \Gedmo\Exception\InvalidArgumentException if event is not recognized
-     *
-     * @return \Gedmo\Mapping\Event\AdapterInterface
-     */
-    protected function getEventAdapter(EventArgs $args)
-    {
-        $class = get_class($args);
-        if (preg_match('@Doctrine\\\([^\\\]+)@', $class, $m) && in_array($m[1], ['ODM', 'ORM'], true)) {
-            if (!isset($this->adapters[$m[1]])) {
-                $adapterClass = $this->getNamespace().'\\Mapping\\Event\\Adapter\\'.$m[1];
-                if (!class_exists($adapterClass)) {
-                    $adapterClass = 'Gedmo\\Mapping\\Event\\Adapter\\'.$m[1];
-                }
-                $this->adapters[$m[1]] = new $adapterClass();
-            }
-            $this->adapters[$m[1]]->setEventArgs($args);
-
-            return $this->adapters[$m[1]];
-        }
-
-        throw new \Gedmo\Exception\InvalidArgumentException('Event mapper does not support event arg class: '.$class);
     }
 
     /**
@@ -244,75 +297,65 @@ abstract class MappedEventSubscriber implements EventSubscriber
     abstract protected function getNamespace();
 
     /**
-     * Sets the value for a mapped field
-     *
-     * @param object $object
-     * @param string $field
-     * @param mixed  $oldValue
-     * @param mixed  $newValue
-     *
-     * @return void
-     */
-    protected function setFieldValue(AdapterInterface $adapter, $object, $field, $oldValue, $newValue)
-    {
-        $manager = $adapter->getObjectManager();
-        $meta = $manager->getClassMetadata(get_class($object));
-        $uow = $manager->getUnitOfWork();
-
-        $meta->getReflectionProperty($field)->setValue($object, $newValue);
-        $uow->propertyChanged($object, $field, $oldValue, $newValue);
-        $adapter->recomputeSingleObjectChangeSet($uow, $meta, $object);
-    }
-
-    /**
      * Create default annotation reader for extensions
+     *
+     * @return \Doctrine\Common\Annotations\AnnotationReader
      */
-    private function getDefaultAnnotationReader(): Reader
+    private function getDefaultAnnotationReader()
     {
         if (null === self::$defaultAnnotationReader) {
-            AnnotationRegistry::registerAutoloadNamespace('Gedmo\\Mapping\\Annotation', __DIR__.'/../../');
-
-            $reader = new AnnotationReader();
-
-            if (class_exists(ArrayAdapter::class)) {
-                $reader = new PsrCachedReader($reader, new ArrayAdapter());
-            } elseif (class_exists(ArrayCache::class)) {
-                $reader = new PsrCachedReader($reader, CacheAdapter::wrap(new ArrayCache()));
+            if (version_compare(\Doctrine\Common\Version::VERSION, '2.2.0-DEV', '>=')) {
+                $reader = new \Doctrine\Common\Annotations\AnnotationReader();
+                \Doctrine\Common\Annotations\AnnotationRegistry::registerAutoloadNamespace(
+                    'Gedmo\\Mapping\\Annotation',
+                    __DIR__.'/../../'
+                );
+                $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
+            } elseif (version_compare(\Doctrine\Common\Version::VERSION, '2.1.0RC4-DEV', '>=')) {
+                $reader = new \Doctrine\Common\Annotations\AnnotationReader();
+                \Doctrine\Common\Annotations\AnnotationRegistry::registerAutoloadNamespace(
+                    'Gedmo\\Mapping\\Annotation',
+                    __DIR__.'/../../'
+                );
+                $reader->setDefaultAnnotationNamespace('Doctrine\ORM\Mapping\\');
+                $reader = new \Doctrine\Common\Annotations\CachedReader($reader, new ArrayCache());
+            } elseif (version_compare(\Doctrine\Common\Version::VERSION, '2.1.0-BETA3-DEV', '>=')) {
+                $reader = new \Doctrine\Common\Annotations\AnnotationReader();
+                $reader->setDefaultAnnotationNamespace('Doctrine\ORM\Mapping\\');
+                $reader->setIgnoreNotImportedAnnotations(true);
+                $reader->setAnnotationNamespaceAlias('Gedmo\\Mapping\\Annotation\\', 'gedmo');
+                $reader->setEnableParsePhpImports(false);
+                $reader->setAutoloadAnnotations(true);
+                $reader = new \Doctrine\Common\Annotations\CachedReader(
+                    new \Doctrine\Common\Annotations\IndexedReader($reader), new ArrayCache()
+                );
+            } else {
+                $reader = new \Doctrine\Common\Annotations\AnnotationReader();
+                $reader->setAutoloadAnnotations(true);
+                $reader->setAnnotationNamespaceAlias('Gedmo\\Mapping\\Annotation\\', 'gedmo');
+                $reader->setDefaultAnnotationNamespace('Doctrine\ORM\Mapping\\');
             }
-
             self::$defaultAnnotationReader = $reader;
         }
 
         return self::$defaultAnnotationReader;
     }
 
-    private function getCacheItemPool(ObjectManager $objectManager): CacheItemPoolInterface
+    /**
+     * Retrieves a FilterCollection instance from the given ObjectManager.
+     *
+     * @param \Doctrine\Common\Persistence\ObjectManager $om
+     * @throws \Gedmo\Exception\InvalidArgumentException
+     * @return mixed
+     */
+    private function getFilterCollectionFromObjectManager($om)
     {
-        if (null !== $this->cacheItemPool) {
-            return $this->cacheItemPool;
+        if (is_callable(array($om, 'getFilters'))) {
+            return $om->getFilters();
+        } else if (is_callable(array($om, 'getFilterCollection'))) {
+            return $om->getFilterCollection();
         }
 
-        // TODO: The user should configure its own cache, we are using the one from Doctrine for BC. We should deprecate using
-        // the one from Doctrine when the bundle offers an easy way to configure this cache, otherwise users using the bundle
-        // will see lots of deprecations without an easy way to avoid them.
-
-        if ($objectManager instanceof EntityManagerInterface || $objectManager instanceof DocumentManager) {
-            $metadataFactory = $objectManager->getMetadataFactory();
-            $getCache = \Closure::bind(static function (AbstractClassMetadataFactory $metadataFactory): ?CacheItemPoolInterface {
-                return $metadataFactory->getCache();
-            }, null, \get_class($metadataFactory));
-
-            $metadataCache = $getCache($metadataFactory);
-
-            if (null !== $metadataCache) {
-                $this->cacheItemPool = $metadataCache;
-
-                return $this->cacheItemPool;
-            }
-        }
-
-        $this->cacheItemPool = new ArrayAdapter();
-
-        return $this->cacheItemPool;
+        throw new InvalidArgumentException("ObjectManager does not support filters");
     }
 }
