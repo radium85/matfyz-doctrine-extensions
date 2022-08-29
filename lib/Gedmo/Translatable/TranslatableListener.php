@@ -204,7 +204,7 @@ class TranslatableListener extends MappedEventSubscriber
         return isset(self::$configurations[$this->name][$class]['translationClass']) ?
             self::$configurations[$this->name][$class]['translationClass'] :
             $ea->getDefaultTranslationClass()
-        ;
+            ;
     }
 
     /**
@@ -395,7 +395,11 @@ class TranslatableListener extends MappedEventSubscriber
         foreach ($ea->getScheduledObjectDeletions($uow) as $object) {
             $meta = $om->getClassMetadata(get_class($object));
             $config = $this->getConfiguration($om, $meta->name);
-            if (isset($config['fields'])) {
+
+            $isSoftdeleteable = isset(self::$configurations['SoftDeleteable'][$meta->name])
+                && $this->hasEnabledFilter($om, 'Gedmo\SoftDeleteable\Filter\SoftDeleteableFilter');
+
+            if (isset($config['fields']) && !$isSoftdeleteable) {
                 $wrapped = AbstractWrapper::wrap($object, $om);
                 $transClass = $this->getTranslationClass($ea, $meta->name);
                 $ea->removeAssociatedTranslations($wrapped, $transClass, $config['useObjectClass']);
@@ -403,7 +407,7 @@ class TranslatableListener extends MappedEventSubscriber
         }
     }
 
-     /**
+    /**
      * Checks for inserted object to update their translation
      * foreign keys
      *
@@ -474,7 +478,7 @@ class TranslatableListener extends MappedEventSubscriber
                 $is_translated = false;
                 foreach ((array) $result as $entry) {
                     if ($entry['field'] == $field) {
-                        $translated = isset($entry['content']) ? $entry['content'] : null;
+                        $translated = $entry['content'];
                         $is_translated = true;
                         break;
                     }
@@ -518,7 +522,7 @@ class TranslatableListener extends MappedEventSubscriber
             throw new \Gedmo\Exception\InvalidArgumentException('Locale or language cannot be empty and must be set through Listener or Entity');
         }
     }
-    
+
     /**
      * Check if the given locale is valid
      *
