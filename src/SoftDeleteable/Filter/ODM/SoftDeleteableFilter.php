@@ -14,6 +14,9 @@ use Doctrine\ODM\MongoDB\Mapping\ClassMetadata;
 use Doctrine\ODM\MongoDB\Query\Filter\BsonFilter;
 use Gedmo\SoftDeleteable\SoftDeleteableListener;
 
+/**
+ * @final since gedmo/doctrine-extensions 3.11
+ */
 class SoftDeleteableFilter extends BsonFilter
 {
     /**
@@ -60,7 +63,7 @@ class SoftDeleteableFilter extends BsonFilter
             return [
                 '$or' => [
                     [$column['fieldName'] => null],
-                    [$column['fieldName'] => ['$gt' => new \DateTime('now')]],
+                    [$column['fieldName'] => ['$gt' => new \DateTime()]],
                 ],
             ];
         }
@@ -101,7 +104,7 @@ class SoftDeleteableFilter extends BsonFilter
             $em = $this->getDocumentManager();
             $evm = $em->getEventManager();
 
-            foreach ($evm->getListeners() as $listeners) {
+            foreach ($evm->getAllListeners() as $listeners) {
                 foreach ($listeners as $listener) {
                     if ($listener instanceof SoftDeleteableListener) {
                         $this->listener = $listener;

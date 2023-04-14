@@ -19,6 +19,8 @@ use Gedmo\Tree\TreeListener;
  * Automatically maps the parent and children properties of Tree nodes
  *
  * @author Ilija Tovilo <ilija.tovilo@me.com>
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class TreeObjectHydrator extends ObjectHydrator
 {
@@ -64,7 +66,7 @@ class TreeObjectHydrator extends ObjectHydrator
     {
         $data = parent::hydrateAllData();
 
-        if (0 === count($data)) {
+        if ([] === $data) {
             return $data;
         }
 
@@ -252,7 +254,7 @@ class TreeObjectHydrator extends ObjectHydrator
      */
     protected function getTreeListener(EntityManagerInterface $em)
     {
-        foreach ($em->getEventManager()->getListeners() as $listeners) {
+        foreach ($em->getEventManager()->getAllListeners() as $listeners) {
             foreach ($listeners as $listener) {
                 if ($listener instanceof TreeListener) {
                     return $listener;

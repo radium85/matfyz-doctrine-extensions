@@ -23,27 +23,29 @@ use Gedmo\Mapping\Driver\File;
  * @author Lukas Botsch <lukas.botsch@gmail.com>
  *
  * @deprecated since gedmo/doctrine-extensions 3.5, will be removed in version 4.0.
+ *
+ * @internal
  */
 class Yaml extends File implements Driver
 {
+    /**
+     * List of types which are valid for position fields
+     *
+     * @var string[]
+     */
+    private const VALID_TYPES = [
+        'int',
+        'integer',
+        'smallint',
+        'bigint',
+    ];
+
     /**
      * File extension
      *
      * @var string
      */
     protected $_extension = '.dcm.yml';
-
-    /**
-     * List of types which are valid for position fields
-     *
-     * @var array
-     */
-    private $validTypes = [
-        'int',
-        'integer',
-        'smallint',
-        'bigint',
-    ];
 
     public function readExtendedMetadata($meta, array &$config)
     {
@@ -93,7 +95,7 @@ class Yaml extends File implements Driver
     {
         $mapping = $meta->getFieldMapping($field);
 
-        return $mapping && in_array($mapping['type'], $this->validTypes, true);
+        return $mapping && in_array($mapping['type'], self::VALID_TYPES, true);
     }
 
     private function readSortableGroups(iterable $mapping, array &$config): void

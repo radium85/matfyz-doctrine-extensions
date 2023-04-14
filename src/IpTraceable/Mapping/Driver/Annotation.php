@@ -20,6 +20,8 @@ use Gedmo\Mapping\Driver\AbstractAnnotationDriver;
  * extension.
  *
  * @author Pierre-Charles Bertineau <pc.bertineau@alterphp.com>
+ *
+ * @internal
  */
 class Annotation extends AbstractAnnotationDriver
 {
@@ -31,7 +33,7 @@ class Annotation extends AbstractAnnotationDriver
     /**
      * List of types which are valid for IP
      *
-     * @var array
+     * @var string[]
      */
     protected $validTypes = [
         'string',

@@ -20,6 +20,8 @@ use Gedmo\Mapping\Driver\AbstractAnnotationDriver;
  * extension.
  *
  * @author David Buchmann <mail@davidbu.ch>
+ *
+ * @internal
  */
 class Annotation extends AbstractAnnotationDriver
 {
@@ -31,7 +33,7 @@ class Annotation extends AbstractAnnotationDriver
     /**
      * List of types which are valid for blame
      *
-     * @var array
+     * @var string[]
      */
     protected $validTypes = [
         'one',

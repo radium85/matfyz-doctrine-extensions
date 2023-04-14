@@ -10,6 +10,7 @@
 namespace Gedmo\Tool\Wrapper;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Proxy\Proxy;
 use Doctrine\Persistence\Proxy as PersistenceProxy;
 
@@ -17,7 +18,11 @@ use Doctrine\Persistence\Proxy as PersistenceProxy;
  * Wraps entity or proxy for more convenient
  * manipulation
  *
+ * @phpstan-extends AbstractWrapper<ClassMetadata>
+ *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class EntityWrapper extends AbstractWrapper
 {

@@ -1,10 +1,19 @@
 <?php
 
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Gedmo\Tree;
 
 use Doctrine\Common\EventArgs;
+use Doctrine\Persistence\Event\LoadClassMetadataEventArgs;
+use Doctrine\Persistence\ObjectManager;
 use Gedmo\Mapping\MappedEventSubscriber;
-use Doctrine\Common\Persistence\ObjectManager;
+use Gedmo\Tree\Mapping\Event\TreeAdapter;
 
 /**
  * The tree listener handles the synchronization of
@@ -12,46 +21,64 @@ use Doctrine\Common\Persistence\ObjectManager;
  * strategies on handling the tree.
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
+ *
+ * @phpstan-type TreeConfiguration = array{
+ *   activate_locking?: bool,
+ *   closure?: class-string,
+ *   left?: string,
+ *   level?: string,
+ *   lock_time?: string,
+ *   locking_timeout?: int,
+ *   parent?: string,
+ *   path?: string,
+ *   path_source?: string,
+ *   path_separator?: string,
+ *   path_append_id?: ?bool,
+ *   path_starts_with_separator?: bool,
+ *   path_ends_with_separator?: bool,
+ *   path_hash?: string,
+ *   right?: string,
+ *   root?: string,
+ *   rootIdentifierMethod?: string,
+ *   strategy?: string,
+ *   useObjectClass?: class-string,
+ * }
+ *
+ * @phpstan-method TreeConfiguration getConfiguration(ObjectManager $objectManager, $class)
+ *
+ * @method TreeAdapter getEventAdapter(EventArgs $args)
  */
 class TreeListener extends MappedEventSubscriber
 {
-    /**
-     * {@inheritDoc}
-     */
-    protected $ignoredFilters = array(
-        'Gedmo\SoftDeleteable\Filter\SoftDeleteableFilter'
-    );
-
     /**
      * Tree processing strategies for object classes
      *
      * @var array
      */
-    private $strategies = array();
+    private $strategies = [];
 
     /**
      * List of strategy instances
      *
      * @var array
      */
-    private $strategyInstances = array();
+    private $strategyInstances = [];
 
     /**
      * List of used classes on flush
      *
      * @var array
      */
-    private $usedClassesOnFlush = array();
+    private $usedClassesOnFlush = [];
 
     /**
      * Specifies the list of events to listen
      *
-     * @return array
+     * @return string[]
      */
     public function getSubscribedEvents()
     {
-        return array(
+        return [
             'prePersist',
             'preRemove',
             'preUpdate',
@@ -60,14 +87,13 @@ class TreeListener extends MappedEventSubscriber
             'postPersist',
             'postUpdate',
             'postRemove',
-        );
+        ];
     }
 
     /**
      * Get the used strategy for tree processing
      *
-     * @param ObjectManager $om
-     * @param string        $class
+     * @param string $class
      *
      * @return Strategy
      */
@@ -79,7 +105,7 @@ class TreeListener extends MappedEventSubscriber
                 throw new \Gedmo\Exception\UnexpectedValueException("Tree object class: {$class} must have tree metadata at this point");
             }
             $managerName = 'UnsupportedManager';
-            if ($om instanceof \Doctrine\ORM\EntityManager) {
+            if ($om instanceof \Doctrine\ORM\EntityManagerInterface) {
                 $managerName = 'ORM';
             } elseif ($om instanceof \Doctrine\ODM\MongoDB\DocumentManager) {
                 $managerName = 'ODM\\MongoDB';
@@ -102,7 +128,7 @@ class TreeListener extends MappedEventSubscriber
      * Looks for Tree objects being updated
      * for further processing
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function onFlush(EventArgs $args)
     {
@@ -110,43 +136,41 @@ class TreeListener extends MappedEventSubscriber
         $om = $ea->getObjectManager();
         $uow = $om->getUnitOfWork();
 
-        $this->disableFilters($om);
         // check all scheduled updates for TreeNodes
         foreach ($ea->getScheduledObjectInsertions($uow) as $object) {
             $meta = $om->getClassMetadata(get_class($object));
-            if ($this->getConfiguration($om, $meta->name)) {
-                $this->usedClassesOnFlush[$meta->name] = null;
-                $this->getStrategy($om, $meta->name)->processScheduledInsertion($om, $object, $ea);
+            if ($this->getConfiguration($om, $meta->getName())) {
+                $this->usedClassesOnFlush[$meta->getName()] = null;
+                $this->getStrategy($om, $meta->getName())->processScheduledInsertion($om, $object, $ea);
                 $ea->recomputeSingleObjectChangeSet($uow, $meta, $object);
             }
         }
 
         foreach ($ea->getScheduledObjectUpdates($uow) as $object) {
             $meta = $om->getClassMetadata(get_class($object));
-            if ($this->getConfiguration($om, $meta->name)) {
-                $this->usedClassesOnFlush[$meta->name] = null;
-                $this->getStrategy($om, $meta->name)->processScheduledUpdate($om, $object, $ea);
+            if ($this->getConfiguration($om, $meta->getName())) {
+                $this->usedClassesOnFlush[$meta->getName()] = null;
+                $this->getStrategy($om, $meta->getName())->processScheduledUpdate($om, $object, $ea);
             }
         }
 
         foreach ($ea->getScheduledObjectDeletions($uow) as $object) {
             $meta = $om->getClassMetadata(get_class($object));
-            if ($this->getConfiguration($om, $meta->name)) {
-                $this->usedClassesOnFlush[$meta->name] = null;
-                $this->getStrategy($om, $meta->name)->processScheduledDelete($om, $object);
+            if ($this->getConfiguration($om, $meta->getName())) {
+                $this->usedClassesOnFlush[$meta->getName()] = null;
+                $this->getStrategy($om, $meta->getName())->processScheduledDelete($om, $object);
             }
         }
 
         foreach ($this->getStrategiesUsedForObjects($this->usedClassesOnFlush) as $strategy) {
             $strategy->onFlushEnd($om, $ea);
         }
-        $this->enableFilters($om);
     }
 
     /**
      * Updates tree on Node removal
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function preRemove(EventArgs $args)
     {
@@ -155,17 +179,15 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPreRemove($om, $object);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPreRemove($om, $object);
         }
     }
 
     /**
      * Checks for persisted Nodes
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function prePersist(EventArgs $args)
     {
@@ -174,17 +196,15 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPrePersist($om, $object);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPrePersist($om, $object);
         }
     }
 
     /**
      * Checks for updated Nodes
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function preUpdate(EventArgs $args)
     {
@@ -193,10 +213,8 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPreUpdate($om, $object);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPreUpdate($om, $object);
         }
     }
 
@@ -204,7 +222,7 @@ class TreeListener extends MappedEventSubscriber
      * Checks for pending Nodes to fully synchronize
      * the tree
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function postPersist(EventArgs $args)
     {
@@ -213,10 +231,8 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPostPersist($om, $object, $ea);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPostPersist($om, $object, $ea);
         }
     }
 
@@ -224,7 +240,7 @@ class TreeListener extends MappedEventSubscriber
      * Checks for pending Nodes to fully synchronize
      * the tree
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function postUpdate(EventArgs $args)
     {
@@ -233,10 +249,8 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPostUpdate($om, $object, $ea);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPostUpdate($om, $object, $ea);
         }
     }
 
@@ -244,7 +258,7 @@ class TreeListener extends MappedEventSubscriber
      * Checks for pending Nodes to fully synchronize
      * the tree
      *
-     * @param EventArgs $args
+     * @return void
      */
     public function postRemove(EventArgs $args)
     {
@@ -253,32 +267,28 @@ class TreeListener extends MappedEventSubscriber
         $object = $ea->getObject();
         $meta = $om->getClassMetadata(get_class($object));
 
-        if ($this->getConfiguration($om, $meta->name)) {
-            $this->disableFilters($om);
-            $this->getStrategy($om, $meta->name)->processPostRemove($om, $object, $ea);
-            $this->enableFilters($om);
+        if ($this->getConfiguration($om, $meta->getName())) {
+            $this->getStrategy($om, $meta->getName())->processPostRemove($om, $object, $ea);
         }
     }
 
     /**
      * Mapps additional metadata
      *
-     * @param EventArgs $eventArgs
+     * @param LoadClassMetadataEventArgs $eventArgs
+     *
+     * @return void
      */
     public function loadClassMetadata(EventArgs $eventArgs)
     {
-        $ea = $this->getEventAdapter($eventArgs);
-        $om = $ea->getObjectManager();
+        $om = $eventArgs->getObjectManager();
         $meta = $eventArgs->getClassMetadata();
         $this->loadMetadataForObjectClass($om, $meta);
-        if (isset(self::$configurations[$this->name][$meta->name]) && self::$configurations[$this->name][$meta->name]) {
-            $this->getStrategy($om, $meta->name)->processMetadataLoad($om, $meta);
+        if (isset(self::$configurations[$this->name][$meta->getName()]) && self::$configurations[$this->name][$meta->getName()]) {
+            $this->getStrategy($om, $meta->getName())->processMetadataLoad($om, $meta);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     protected function getNamespace()
     {
         return __NAMESPACE__;
@@ -288,13 +298,11 @@ class TreeListener extends MappedEventSubscriber
      * Get the list of strategy instances used for
      * given object classes
      *
-     * @param array $classes
-     *
      * @return Strategy[]
      */
     protected function getStrategiesUsedForObjects(array $classes)
     {
-        $strategies = array();
+        $strategies = [];
         foreach ($classes as $name => $opt) {
             if (isset($this->strategies[$name]) && !isset($strategies[$this->strategies[$name]])) {
                 $strategies[$this->strategies[$name]] = $this->strategyInstances[$this->strategies[$name]];

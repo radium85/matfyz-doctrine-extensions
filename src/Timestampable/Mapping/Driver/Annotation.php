@@ -20,6 +20,8 @@ use Gedmo\Mapping\Driver\AbstractAnnotationDriver;
  * extension.
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ *
+ * @internal
  */
 class Annotation extends AbstractAnnotationDriver
 {
@@ -31,7 +33,7 @@ class Annotation extends AbstractAnnotationDriver
     /**
      * List of types which are valid for timestamp
      *
-     * @var array
+     * @var string[]
      */
     protected $validTypes = [
         'date',

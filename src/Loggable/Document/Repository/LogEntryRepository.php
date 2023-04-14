@@ -87,15 +87,16 @@ class LogEntryRepository extends DocumentRepository
         if ($logs instanceof Iterator) {
             $logs = $logs->toArray();
         }
-        if ($logs) {
-            $data = [];
-            while ($log = array_shift($logs)) {
-                $data = array_merge($data, $log->getData());
-            }
-            $this->fillDocument($document, $data);
-        } else {
+
+        if ([] === $logs) {
             throw new \Gedmo\Exception\UnexpectedValueException('Count not find any log entries under version: '.$version);
         }
+
+        $data = [];
+        while ($log = array_shift($logs)) {
+            $data = array_merge($data, $log->getData());
+        }
+        $this->fillDocument($document, $data);
     }
 
     /**
@@ -146,7 +147,7 @@ class LogEntryRepository extends DocumentRepository
     private function getLoggableListener(): LoggableListener
     {
         if (null === $this->listener) {
-            foreach ($this->dm->getEventManager()->getListeners() as $event => $listeners) {
+            foreach ($this->dm->getEventManager()->getAllListeners() as $event => $listeners) {
                 foreach ($listeners as $hash => $listener) {
                     if ($listener instanceof LoggableListener) {
                         $this->listener = $listener;

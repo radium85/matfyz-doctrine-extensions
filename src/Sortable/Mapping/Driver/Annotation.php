@@ -21,6 +21,8 @@ use Gedmo\Mapping\Driver\AbstractAnnotationDriver;
  * extension.
  *
  * @author Lukas Botsch <lukas.botsch@gmail.com>
+ *
+ * @internal
  */
 class Annotation extends AbstractAnnotationDriver
 {
@@ -37,7 +39,7 @@ class Annotation extends AbstractAnnotationDriver
     /**
      * List of types which are valid for position fields
      *
-     * @var array
+     * @var string[]
      */
     protected $validTypes = [
         'int',

@@ -11,6 +11,7 @@ namespace Gedmo\Uploadable;
 
 use Doctrine\Common\EventArgs;
 use Doctrine\DBAL\Types\Type;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\Event\LoadClassMetadataEventArgs;
 use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\NotifyPropertyChanged;
@@ -122,12 +123,11 @@ class UploadableListener extends MappedEventSubscriber
         $ea = $this->getEventAdapter($args);
         $om = $ea->getObjectManager();
         $uow = $om->getUnitOfWork();
-        $first = reset($this->fileInfoObjects);
-        $meta = $om->getClassMetadata(get_class($first['entity']));
-        $config = $this->getConfiguration($om, $meta->getName());
 
         foreach ($this->fileInfoObjects as $info) {
             $entity = $info['entity'];
+            $meta = $om->getClassMetadata(get_class($entity));
+            $config = $this->getConfiguration($om, $meta->getName());
 
             // If the entity is in the identity map, it means it will be updated. We need to force the
             // "dirty check" here by "modifying" the path. We are actually setting the same value, but
@@ -220,6 +220,7 @@ class UploadableListener extends MappedEventSubscriber
     {
         $oid = spl_object_id($object);
         $om = $ea->getObjectManager();
+        \assert($om instanceof EntityManagerInterface);
         $uow = $om->getUnitOfWork();
         $meta = $om->getClassMetadata(get_class($object));
         $config = $this->getConfiguration($om, $meta->getName());
@@ -577,8 +578,10 @@ class UploadableListener extends MappedEventSubscriber
     /**
      * Adds a FileInfoInterface object for the given entity
      *
-     * @param object                  $entity
-     * @param array|FileInfoInterface $fileInfo
+     * @param object                        $entity
+     * @param array|FileInfoInterface|mixed $fileInfo
+     *
+     * @phpstan-assert FileInfoInterface|array $fileInfo
      *
      * @throws \RuntimeException
      *

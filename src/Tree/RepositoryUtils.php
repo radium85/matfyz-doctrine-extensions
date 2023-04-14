@@ -9,12 +9,17 @@
 
 namespace Gedmo\Tree;
 
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\ObjectManager;
 use Gedmo\Exception\InvalidArgumentException;
 use Gedmo\Tool\Wrapper\EntityWrapper;
 use Gedmo\Tool\Wrapper\MongoDocumentWrapper;
 
+/**
+ * @final since gedmo/doctrine-extensions 3.11
+ */
 class RepositoryUtils implements RepositoryUtilsInterface
 {
     /** @var ClassMetadata */
@@ -23,7 +28,7 @@ class RepositoryUtils implements RepositoryUtilsInterface
     /** @var TreeListener */
     protected $listener;
 
-    /** @var ObjectManager */
+    /** @var ObjectManager&(DocumentManager|EntityManagerInterface) */
     protected $om;
 
     /** @var RepositoryInterface */
@@ -38,6 +43,7 @@ class RepositoryUtils implements RepositoryUtilsInterface
     protected $childrenIndex = '__children';
 
     /**
+     * @param ObjectManager&(DocumentManager|EntityManagerInterface) $om
      * @param TreeListener        $listener
      * @param RepositoryInterface $repo
      */
@@ -111,7 +117,7 @@ class RepositoryUtils implements RepositoryUtilsInterface
             return $nestedTree;
         }
 
-        if (!count($nestedTree)) {
+        if ([] === $nestedTree) {
             return '';
         }
 
@@ -122,7 +128,7 @@ class RepositoryUtils implements RepositoryUtilsInterface
             foreach ($tree as $node) {
                 $output .= is_string($options['childOpen']) ? $options['childOpen'] : $options['childOpen']($node);
                 $output .= $options['nodeDecorator']($node);
-                if (count($node[$childrenIndex]) > 0) {
+                if ([] !== $node[$childrenIndex]) {
                     $output .= $build($node[$childrenIndex]);
                 }
                 $output .= is_string($options['childClose']) ? $options['childClose'] : $options['childClose']($node);
@@ -141,7 +147,7 @@ class RepositoryUtils implements RepositoryUtilsInterface
         $nestedTree = [];
         $l = 0;
 
-        if (count($nodes) > 0) {
+        if ([] !== $nodes) {
             // Node Stack. Used to help building the hierarchy
             $stack = [];
             foreach ($nodes as $child) {

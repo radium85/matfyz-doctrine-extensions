@@ -1,8 +1,13 @@
 services:
   php:
-    build: .docker/php
+    build:
+      context: .docker/php
+      target: php
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.1-cli}
     volumes:
       - .:/var/www
+    working_dir: /var/www
     environment:
       MONGODB_SERVER: 'mongodb://mongodb:27017'
     tty: true

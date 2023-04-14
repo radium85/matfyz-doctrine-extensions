@@ -1,4 +1,4 @@
-# Blameable behavior extension for Doctrine 2
+# Blameable behavior extension for Doctrine
 
 **Blameable** behavior will automate the update of username or user reference fields
 on your Entities or Documents. It works through annotations and can update
@@ -220,7 +220,7 @@ class Article
      * @ORM\JoinColumn(name="created_by", referencedColumnName="id")
      */
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[ORM\JoinColumn(name: 'created_at', referencedColumnName: 'id')]
+    #[ORM\JoinColumn(name: 'created_by', referencedColumnName: 'id')]
     #[Gedmo\Blameable(on: 'create')]
     private $createdBy;
 

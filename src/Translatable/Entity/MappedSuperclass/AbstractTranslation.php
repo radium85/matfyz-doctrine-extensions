@@ -1,7 +1,15 @@
 <?php
 
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 namespace Gedmo\Translatable\Entity\MappedSuperclass;
 
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -9,56 +17,65 @@ use Doctrine\ORM\Mapping as ORM;
  *
  * @ORM\MappedSuperclass
  */
+#[ORM\MappedSuperclass]
 abstract class AbstractTranslation
 {
     /**
-     * @var integer $id
+     * @var int
      *
      * @ORM\Column(type="integer")
      * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\GeneratedValue(strategy="IDENTITY")
      */
+    #[ORM\Column(type: Types::INTEGER)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
     protected $id;
 
     /**
-     * @var string $locale
+     * @var string
      *
      * @ORM\Column(type="string", length=8)
      */
+    #[ORM\Column(type: Types::STRING, length: 8)]
     protected $locale;
 
     /**
-     * @var string $objectClass
+     * @var string
      *
-     * @ORM\Column(name="object_class", type="string", length=255)
+     * @ORM\Column(name="object_class", type="string", length=191)
      */
+    #[ORM\Column(name: 'object_class', type: Types::STRING, length: 191)]
     protected $objectClass;
 
     /**
-     * @var string $field
+     * @var string
      *
      * @ORM\Column(type="string", length=32)
      */
+    #[ORM\Column(type: Types::STRING, length: 32)]
     protected $field;
 
     /**
-     * @var string $foreignKey
+     * @var string
      *
      * @ORM\Column(name="foreign_key", type="string", length=64)
      */
+    #[ORM\Column(name: 'foreign_key', type: Types::STRING, length: 64)]
     protected $foreignKey;
 
     /**
-     * @var string $content
+     * @var string
      *
      * @ORM\Column(type="text", nullable=true)
      */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
     protected $content;
 
     /**
      * Get id
      *
-     * @return integer $id
+     * @return int $id
      */
     public function getId()
     {

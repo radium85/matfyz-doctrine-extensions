@@ -42,7 +42,7 @@ class SortableRepository extends EntityRepository
     {
         parent::__construct($em, $class);
         $sortableListener = null;
-        foreach ($em->getEventManager()->getListeners() as $event => $listeners) {
+        foreach ($em->getEventManager()->getAllListeners() as $event => $listeners) {
             foreach ($listeners as $hash => $listener) {
                 if ($listener instanceof SortableListener) {
                     $sortableListener = $listener;
@@ -81,7 +81,7 @@ class SortableRepository extends EntityRepository
             }
             unset($groups[$name]);
         }
-        if (count($groups) > 0) {
+        if ([] !== $groups) {
             throw new \InvalidArgumentException('You need to specify values for the following groups to select by sortable groups: '.implode(', ', array_keys($groups)));
         }
 

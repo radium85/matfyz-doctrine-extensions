@@ -19,9 +19,50 @@ a release.
 
 ## [Unreleased]
 
+## [3.11.1] - 2023-02-20
+### Fixed
+- Loggable: Remove unfixable deprecation when extending `LoggableListener`
+- Remove unfixable deprecations when extending repository classes
+- Fix error caused by the attempt of "doctrine/annotations" parsing a `@note` annotation
+
+## [3.11.0] - 2023-01-26
+### Added
+- Tree: Add `Nested::ALLOWED_NODE_POSITIONS` constant in order to expose the available node positions
+- Support for `doctrine/collections` 2.0
+- Support for `doctrine/event-manager` 2.0
+- Loggable: Add `LogEntryInterface` interface in order to be implemented by log entry models
+
+### Fixed
+- Sortable: Fix return value check of Comparable interface (#2541)
+- Uploadable: Retrieve the correct metadata when uploading entities of different classes (#2071)
+- Translatable: Fix property existence check at `TranslatableListener::getTranslatableLocale()`
+
+### Deprecated
+- In order to close the API, `@final` and `@internal` annotations were added to all non base classes, which means that extending
+  these classes is deprecated and can not be inherited in version 4.0.
+- Sortable: Accepting a return type other than "integer" from `Comparable::compareTo()` is deprecated in `SortableListener::postFlush()`.
+  This will not be accepted in version 4.0.
+- Deprecate the annotation reader being allowed to be any object.
+  In 4.0, a `Doctrine\Common\Annotations\Reader` or `Gedmo\Mapping\Driver\AttributeReader` instance will be required.
+- `Gedmo\DoctrineExtensions::registerAnnotations()` is deprecated and will be removed in 4.0, the method has been no-op'd as all
+  supported `doctrine/annotations` versions support autoloading
+- Loggable: Constants `LoggableListener::ACTION_CREATE`, `LoggableListener::ACTION_UPDATE` and `LoggableListener::ACTION_REMOVE`
+  are deprecated. Use `LogEntryInterface::ACTION_CREATE`, `LogEntryInterface::ACTION_UPDATE` and `LogEntryInterface::ACTION_REMOVE`
+  instead.
+
+## [3.10.0] - 2022-11-14
+### Changed
+- Bump "doctrine/event-manager" dependency from ^1.0 to ^1.2.
+
+### Fixed
+- Tree: TreeRoot without rootIdentifierMethod when calling getNextSiblings (#2518)
+- Sortable: Fix duplicated positions when manually updating position on more than one object (#2439)
+
+## [3.9.0] - 2022-09-22
 ### Fixed
 - Tree: Allow sorting children by a ManyToOne relation (#2492)
 - Tree: Fix passing `null` to `abs()` function
+- Timestampable: Use an attribute in Timestampable attribute docs
 
 ### Deprecated
 - Tree: Passing `null` as argument 8 to `Nested::shiftRangeRL()`

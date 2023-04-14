@@ -16,6 +16,7 @@ use Doctrine\ORM\Proxy\Proxy;
 use Gedmo\Exception\UnexpectedValueException;
 use Gedmo\Mapping\Event\AdapterInterface;
 use Gedmo\Tool\Wrapper\AbstractWrapper;
+use Gedmo\Tree\Node;
 use Gedmo\Tree\Strategy;
 use Gedmo\Tree\TreeListener;
 
@@ -26,6 +27,8 @@ use Gedmo\Tree\TreeListener;
  * since nested set trees are slow on inserts and updates.
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class Nested implements Strategy
 {
@@ -40,14 +43,21 @@ class Nested implements Strategy
     public const NEXT_SIBLING = 'NextSibling';
 
     /**
+     * First child position
+     */
+    public const FIRST_CHILD = 'FirstChild';
+
+    /**
      * Last child position
      */
     public const LAST_CHILD = 'LastChild';
 
-    /**
-     * First child position
-     */
-    public const FIRST_CHILD = 'FirstChild';
+    public const ALLOWED_NODE_POSITIONS = [
+        self::PREV_SIBLING,
+        self::NEXT_SIBLING,
+        self::FIRST_CHILD,
+        self::LAST_CHILD,
+    ];
 
     /**
      * TreeListener
@@ -61,7 +71,7 @@ class Nested implements Strategy
      * tree in case few root nodes will be persisted
      * on one flush for node classes
      *
-     * @var array
+     * @var array<string, int>
      */
     private $treeEdges = [];
 
@@ -69,14 +79,18 @@ class Nested implements Strategy
      * Stores a list of node position strategies
      * for each node by object id
      *
-     * @var array
+     * @var array<int, string>
+     *
+     * @phpstan-var array<int, value-of<self::ALLOWED_NODE_POSITIONS>>
      */
     private $nodePositions = [];
 
     /**
      * Stores a list of delayed nodes for correct order of updates
      *
-     * @var array
+     * @var array<int, array<int, array<string, Node|object|string>>>
+     *
+     * @phpstan-var array<int, array<int, array{node: Node|object, position: value-of<self::ALLOWED_NODE_POSITIONS>}>>
      */
     private $delayedNodes = [];
 
@@ -100,13 +114,7 @@ class Nested implements Strategy
      */
     public function setNodePosition($oid, $position)
     {
-        $valid = [
-            self::FIRST_CHILD,
-            self::LAST_CHILD,
-            self::NEXT_SIBLING,
-            self::PREV_SIBLING,
-        ];
-        if (!in_array($position, $valid, false)) {
+        if (!in_array($position, self::ALLOWED_NODE_POSITIONS, true)) {
             throw new \Gedmo\Exception\InvalidArgumentException("Position: {$position} is not valid in nested set tree");
         }
         $this->nodePositions[$oid] = $position;
@@ -253,18 +261,19 @@ class Nested implements Strategy
     }
 
     /**
-     * Update the $node with a diferent $parent
-     * destination
+     * Update the $node with a different $parent destination
      *
-     * @param object $node     target node
-     * @param object $parent   destination node
-     * @param string $position
+     * @param Node|object $node     target node
+     * @param Node|object $parent   destination node
+     * @param string      $position
+     *
+     * @phpstan-param value-of<self::ALLOWED_NODE_POSITIONS> $position
      *
      * @throws \Gedmo\Exception\UnexpectedValueException
      *
      * @return void
      */
-    public function updateNode(EntityManagerInterface $em, $node, $parent, $position = 'FirstChild')
+    public function updateNode(EntityManagerInterface $em, $node, $parent, $position = self::FIRST_CHILD)
     {
         $wrapped = AbstractWrapper::wrap($node, $em);
 
@@ -644,7 +653,7 @@ class Nested implements Strategy
         if (null === $levelDelta && func_num_args() >= 8) {
             @trigger_error(sprintf(
                 'Passing a type different than "int" as argument 8 to "%s()" is deprecated since gedmo/doctrine-extensions'.
-                ' 3.x and will throw a "%s" error in version 4.0.',
+                ' 3.9 and will throw a "%s" error in version 4.0.',
                 __METHOD__,
                 \TypeError::class
             ), E_USER_DEPRECATED);

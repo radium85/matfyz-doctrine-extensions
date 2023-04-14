@@ -10,6 +10,9 @@
 namespace Gedmo\Mapping;
 
 use Doctrine\Bundle\DoctrineBundle\Mapping\MappingDriver as DoctrineBundleMappingDriver;
+use Doctrine\Common\Annotations\Reader;
+use Doctrine\ODM\MongoDB\Mapping\ClassMetadata as DocumentClassMetadata;
+use Doctrine\ORM\Mapping\ClassMetadataInfo as EntityClassMetadata;
 use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\Mapping\Driver\DefaultFileLocator;
 use Doctrine\Persistence\Mapping\Driver\MappingDriver;
@@ -28,6 +31,8 @@ use Psr\Cache\CacheItemPoolInterface;
  * initialization and fully reading the extension metadata
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class ExtensionMetadataFactory
 {
@@ -41,7 +46,7 @@ class ExtensionMetadataFactory
     /**
      * Object manager, entity or document
      *
-     * @var object
+     * @var ObjectManager
      */
     protected $objectManager;
 
@@ -55,7 +60,7 @@ class ExtensionMetadataFactory
     /**
      * Custom annotation reader
      *
-     * @var object
+     * @var Reader|AttributeReader|object
      */
     protected $annotationReader;
 
@@ -64,8 +69,22 @@ class ExtensionMetadataFactory
      */
     private $cacheItemPool;
 
+    /**
+     * @param Reader|AttributeReader|object $annotationReader
+     */
     public function __construct(ObjectManager $objectManager, string $extensionNamespace, object $annotationReader, ?CacheItemPoolInterface $cacheItemPool = null)
     {
+        if (!$annotationReader instanceof Reader && !$annotationReader instanceof AttributeReader) {
+            trigger_deprecation(
+                'gedmo/doctrine-extensions',
+                '3.11',
+                'Providing an annotation reader which does not implement %s or is not an instance of %s to %s is deprecated.',
+                Reader::class,
+                AttributeReader::class,
+                static::class
+            );
+        }
+
         $this->objectManager = $objectManager;
         $this->annotationReader = $annotationReader;
         $this->extensionNamespace = $extensionNamespace;
@@ -77,7 +96,7 @@ class ExtensionMetadataFactory
     /**
      * Reads extension metadata
      *
-     * @param ClassMetadata $meta
+     * @param ClassMetadata&(DocumentClassMetadata|EntityClassMetadata) $meta
      *
      * @return array the metatada configuration
      */
@@ -94,6 +113,7 @@ class ExtensionMetadataFactory
             foreach (array_reverse(class_parents($meta->getName())) as $parentClass) {
                 // read only inherited mapped classes
                 if ($cmf->hasMetadataFor($parentClass)) {
+                    /** @var DocumentClassMetadata|EntityClassMetadata $class */
                     $class = $this->objectManager->getClassMetadata($parentClass);
                     $this->driver->readExtendedMetadata($class, $config);
                     $isBaseInheritanceLevel = !$class->isInheritanceTypeNone()
@@ -186,7 +206,11 @@ class ExtensionMetadataFactory
             }
 
             if ($driver instanceof AttributeDriverInterface) {
-                $driver->setAnnotationReader(new AttributeAnnotationReader(new AttributeReader(), $this->annotationReader));
+                if ($this->annotationReader instanceof AttributeReader) {
+                    $driver->setAnnotationReader($this->annotationReader);
+                } else {
+                    $driver->setAnnotationReader(new AttributeAnnotationReader(new AttributeReader(), $this->annotationReader));
+                }
             } elseif ($driver instanceof AnnotationDriverInterface) {
                 $driver->setAnnotationReader($this->annotationReader);
             }

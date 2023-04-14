@@ -28,6 +28,8 @@ use Gedmo\SoftDeleteable\SoftDeleteableListener;
  *
  * @author Gustavo Falco <comfortablynumb84@gmail.com>
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class SoftDeleteableWalker extends SqlWalker
 {
@@ -136,7 +138,7 @@ class SoftDeleteableWalker extends SqlWalker
         if (null === $this->listener) {
             $em = $this->getEntityManager();
 
-            foreach ($em->getEventManager()->getListeners() as $listeners) {
+            foreach ($em->getEventManager()->getAllListeners() as $listeners) {
                 foreach ($listeners as $listener) {
                     if ($listener instanceof SoftDeleteableListener) {
                         $this->listener = $listener;

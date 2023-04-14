@@ -23,22 +23,17 @@ use Gedmo\Mapping\Driver\File;
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
  *
  * @deprecated since gedmo/doctrine-extensions 3.5, will be removed in version 4.0.
+ *
+ * @internal
  */
 class Yaml extends File implements Driver
 {
     /**
-     * File extension
-     *
-     * @var string
-     */
-    protected $_extension = '.dcm.yml';
-
-    /**
      * List of types which are valid for timestamp
      *
-     * @var array
+     * @var string[]
      */
-    private $validTypes = [
+    private const VALID_TYPES = [
         'date',
         'date_immutable',
         'time',
@@ -51,6 +46,13 @@ class Yaml extends File implements Driver
         'vardatetime',
         'integer',
     ];
+
+    /**
+     * File extension
+     *
+     * @var string
+     */
+    protected $_extension = '.dcm.yml';
 
     public function readExtendedMetadata($meta, array &$config)
     {
@@ -105,6 +107,6 @@ class Yaml extends File implements Driver
     {
         $mapping = $meta->getFieldMapping($field);
 
-        return $mapping && in_array($mapping['type'], $this->validTypes, true);
+        return $mapping && in_array($mapping['type'], self::VALID_TYPES, true);
     }
 }

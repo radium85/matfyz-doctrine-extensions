@@ -48,6 +48,8 @@ use ProxyManager\Proxy\GhostObjectInterface;
  * @phpstan-method SortableConfiguration getConfiguration(ObjectManager $objectManager, $class)
  *
  * @method SortableAdapter getEventAdapter(EventArgs $args)
+ *
+ * @final since gedmo/doctrine-extensions 3.11
  */
 class SortableListener extends MappedEventSubscriber
 {
@@ -122,12 +124,18 @@ class SortableListener extends MappedEventSubscriber
             }
         }
 
+        $updateValues = [];
         // process all objects being updated
         foreach ($ea->getScheduledObjectUpdates($uow) as $object) {
             $meta = $om->getClassMetadata(get_class($object));
             if ($config = $this->getConfiguration($om, $meta->getName())) {
-                $this->processUpdate($ea, $config, $meta, $object);
+                $position = $meta->getReflectionProperty($config['position'])->getValue($object);
+                $updateValues[$position] = [$ea, $config, $meta, $object];
             }
+        }
+        krsort($updateValues);
+        foreach ($updateValues as [$ea, $config, $meta, $object]) {
+            $this->processUpdate($ea, $config, $meta, $object);
         }
 
         // process all objects being inserted
@@ -258,6 +266,17 @@ class SortableListener extends MappedEventSubscriber
                                 // Otherwise we fallback to normal object comparison
                                 if ($gr instanceof Comparable) {
                                     $matches = $gr->compareTo($value);
+                                    // @todo: Remove "is_int" check and only support integer as the interface expects.
+                                    if (is_int($matches)) {
+                                        $matches = 0 === $matches;
+                                    } else {
+                                        @trigger_error(sprintf(
+                                            'Support for "%s" as return type from "%s::compareTo()" is deprecated since'
+                                            .' gedmo/doctrine-extensions 3.11 and will be removed in version 4.0. Return "integer" instead.',
+                                            gettype($matches),
+                                            Comparable::class
+                                        ), E_USER_DEPRECATED);
+                                    }
                                 } else {
                                     $matches = $gr == $value;
                                 }
@@ -484,18 +503,6 @@ class SortableListener extends MappedEventSubscriber
             $relocation = [$hash, $config['useObjectClass'], $groups, $oldPosition + 1, $newPosition + 1, -1];
         }
 
-        // Apply existing relocations
-        $applyDelta = 0;
-        if (isset($this->relocations[$hash])) {
-            foreach ($this->relocations[$hash]['deltas'] as $delta) {
-                if ($delta['start'] <= $newPosition
-                        && ($delta['stop'] > $newPosition || $delta['stop'] < 0)) {
-                    $applyDelta += $delta['delta'];
-                }
-            }
-        }
-        $newPosition += $applyDelta;
-
         if ($relocation) {
             // Add relocation
             call_user_func_array([$this, 'addRelocation'], $relocation);
@@ -591,7 +598,7 @@ class SortableListener extends MappedEventSubscriber
         $maxPos = null;
 
         // Get groups
-        if (!count($groups)) {
+        if ([] === $groups) {
             $groups = $this->getGroups($meta, $config, $object);
         }
 

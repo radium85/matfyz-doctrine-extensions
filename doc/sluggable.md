@@ -1,4 +1,4 @@
-# Sluggable behavior extension for Doctrine 2
+# Sluggable behavior extension for Doctrine
 
 **Sluggable** behavior will build the slug of predefined fields on a given field
 which should store the slug
@@ -271,7 +271,7 @@ echo $article->getSlug();
 
 - **fields** (required, default=[]) - list of fields for slug
 - **updatable** (optional, default=true) - **true** to update the slug on sluggable field changes, **false** - otherwise
-- **unique** (optional, default=true) - **true** if slug should be unique and if identical it will be prefixed, **false** - otherwise
+- **unique** (optional, default=true) - **true** if slug should be unique and if identical it will be suffixed, **false** - otherwise
 - **unique_base** (optional, default=null) - used in conjunction with **unique**. The name of the entity property that should be used as a key when doing a uniqueness check.
 - **separator** (optional, default="-") - separator which will separate words in slug
 - **prefix** (optional, default="") - prefix which will be added to the generated slug

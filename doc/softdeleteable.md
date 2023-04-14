@@ -1,4 +1,4 @@
-# SoftDeleteable behavior extension for Doctrine 2
+# SoftDeleteable behavior extension for Doctrine
 
 **SoftDeleteable** behavior allows to "soft delete" objects, filtering them
 at SELECT time by marking them deleted as with a timestamp, but not explicitly removing them from the database.
@@ -163,19 +163,6 @@ class Article
         $this->deletedAt = $deletedAt;
     }
 }
-```
-
-  id:
-    id:
-      type: integer
-      generator:
-        strategy: AUTO
-  fields:
-    title:
-      type: string
-    deletedAt:
-      type: date
-      nullable: true
 ```
 
 <a name="xml-mapping"></a>

@@ -1,4 +1,4 @@
-# Loggable behavioral extension for Doctrine2
+# Loggable behavioral extension for Doctrine
 
 **Loggable** behavior tracks your record changes and is able to
 manage versions.
@@ -32,14 +32,16 @@ on how to setup and use the extensions in most optimized way.
 
 ### Loggable annotations:
 
-- **@Gedmo\Mapping\Annotation\Loggable(logEntryClass="my\class")** this class annotation
-will store logs to optionally specified **logEntryClass**. You will still need to specify versioned fields with the following annotation.
+- **@Gedmo\Mapping\Annotation\Loggable(logEntryClass="My\LoggableModel")** this class annotation will store logs to optionally
+  specified **logEntryClass**. The class provided in this annotation MUST implement ``Gedmo\Loggable\LogEntryInterface``. You will
+  still need to specify versioned fields with the following annotation.
 - **@Gedmo\Mapping\Annotation\Versioned** tracks annotated property for changes
 
 ### Loggable attributes:
 
-- **\#[Gedmo\Mapping\Annotation\Loggable(logEntryClass: MyClass::class]** this class attribute
-will store logs to optionally specified **logEntryClass**. You will still need to specify versioned fields with the following attribute.
+- **\#[Gedmo\Mapping\Annotation\Loggable(logEntryClass: My\LoggableModel::class]** this class attribute will store logs to optionally
+  specified **logEntryClass**. The class provided in this attribute MUST implement ``Gedmo\Loggable\LogEntryInterface``. You will
+  still need to specify versioned fields with the following attribute.
 - **\#[Gedmo\Mapping\Annotation\Versioned]** tracks attributed property for changes
 
 ### Loggable username:
@@ -195,6 +197,44 @@ class Article
 
     </entity>
 </doctrine-mapping>
+```
+
+<a name="custom-logentry-class"></a>
+
+## Custom LogEntry class
+
+```php
+<?php
+
+namespace Entity;
+
+use Doctrine\ORM\Mapping as ORM;
+use Gedmo\Loggable\Entity\MappedSuperclass\AbstractLogEntry;
+
+/**
+ * @ORM\Table(
+ *     options={"row_format":"DYNAMIC"},
+ *     indexes={
+ *         @ORM\Index(name="log_class_lookup_idx", columns={"object_class"}),
+ *         @ORM\Index(name="log_date_lookup_idx", columns={"logged_at"}),
+ *         @ORM\Index(name="log_user_lookup_idx", columns={"username"}),
+ *         @ORM\Index(name="log_version_lookup_idx", columns={"object_id", "object_class", "version"})
+ *     }
+ * )
+ * @ORM\Entity()
+ */
+#[ORM\Entity]
+#[ORM\Table(options: ['row_format' => 'DYNAMIC'])]
+#[ORM\Index(name: 'log_class_lookup_idx', columns: ['object_class'])]
+#[ORM\Index(name: 'log_date_lookup_idx', columns: ['logged_at'])]
+#[ORM\Index(name: 'log_user_lookup_idx', columns: ['username'])]
+#[ORM\Index(name: 'log_version_lookup_idx', columns: ['object_id', 'object_class', 'version'])]
+class ParameterHistory extends AbstractLogEntry
+{
+    /*
+     * All required columns are mapped through inherited superclass
+     */
+}
 ```
 
 <a name="basic-examples"></a>
