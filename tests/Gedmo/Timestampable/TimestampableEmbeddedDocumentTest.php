@@ -1,46 +1,41 @@
 <?php
 
-namespace Gedmo\Timestampable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Timestampable;
 
 use Doctrine\Common\EventManager;
-use Timestampable\Fixture\Document\Book;
-use Timestampable\Fixture\Document\Tag;
-use Tool\BaseTestCaseMongoODM;
+use Gedmo\Tests\Timestampable\Fixture\Document\Book;
+use Gedmo\Tests\Timestampable\Fixture\Document\Tag;
+use Gedmo\Tests\Tool\BaseTestCaseMongoODM;
+use Gedmo\Timestampable\TimestampableListener;
 
 /**
  * These are tests for Timestampable behavior ODM implementation
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class TimestampableEmbeddedDocumentTest extends BaseTestCaseMongoODM
+final class TimestampableEmbeddedDocumentTest extends BaseTestCaseMongoODM
 {
-    const BOOK = 'Timestampable\Fixture\Document\Book';
+    public const BOOK = Book::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $evm = new EventManager();
         $evm->addEventSubscriber(new TimestampableListener());
 
-        $this->getMockDocumentManager($evm);
+        $this->getDefaultDocumentManager($evm);
     }
 
-    /**
-     * Test that no php notice is triggered while processing timestampable properties of embedded document
-     */
-    public function testPersistOnlyEmbeddedDocument()
-    {
-        $tag = new Tag();
-        $tag->setName('cats');
-
-        $this->dm->persist($tag);
-        $this->dm->flush();
-        $this->dm->clear();
-    }
-
-    public function testPersistEmbeddedDocumentWithParent()
+    public function testPersistEmbeddedDocumentWithParent(): void
     {
         $tag1 = new Tag();
         $tag1->setName('cats');
@@ -59,28 +54,28 @@ class TimestampableEmbeddedDocumentTest extends BaseTestCaseMongoODM
 
         $repo = $this->dm->getRepository(self::BOOK);
 
-        $bookFromRepo = $repo->findOneByTitle('Cats & Dogs');
+        $bookFromRepo = $repo->findOneBy(['title' => 'Cats & Dogs']);
 
-        $this->assertNotNull($bookFromRepo);
+        static::assertNotNull($bookFromRepo);
 
         $date = new \DateTime();
 
-        $this->assertEquals(
+        static::assertSame(
             $date->format('Y-m-d H:i'),
             $book->getTags()->get(0)->getCreated()->format('Y-m-d H:i')
         );
 
-        $this->assertEquals(
+        static::assertSame(
             $date->format('Y-m-d H:i'),
             $book->getTags()->get(1)->getCreated()->format('Y-m-d H:i')
         );
 
-        $this->assertEquals(
+        static::assertSame(
             $date->format('Y-m-d H:i'),
             $book->getTags()->get(0)->getUpdated()->format('Y-m-d H:i')
         );
 
-        $this->assertEquals(
+        static::assertSame(
             $date->format('Y-m-d H:i'),
             $book->getTags()->get(1)->getUpdated()->format('Y-m-d H:i')
         );

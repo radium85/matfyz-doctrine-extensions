@@ -1,27 +1,36 @@
 <?php
 
-namespace Gedmo\Blameable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Blameable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Blameable\Fixture\Entity\Article;
-use Blameable\Fixture\Entity\Comment;
-use Blameable\Fixture\Entity\Type;
+use Gedmo\Blameable\Blameable;
+use Gedmo\Blameable\BlameableListener;
+use Gedmo\Tests\Blameable\Fixture\Entity\Article;
+use Gedmo\Tests\Blameable\Fixture\Entity\Comment;
+use Gedmo\Tests\Blameable\Fixture\Entity\Type;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 
 /**
  * These are tests for Blameable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class BlameableTest extends BaseTestCaseORM
+final class BlameableTest extends BaseTestCaseORM
 {
-    const ARTICLE = "Blameable\\Fixture\\Entity\\Article";
-    const COMMENT = "Blameable\\Fixture\\Entity\\Comment";
-    const TYPE = "Blameable\\Fixture\\Entity\\Type";
+    public const ARTICLE = Article::class;
+    public const COMMENT = Comment::class;
+    public const TYPE = Type::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -31,36 +40,36 @@ class BlameableTest extends BaseTestCaseORM
         $evm = new EventManager();
         $evm->addEventSubscriber($listener);
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
     }
 
-    public function testBlameable()
+    public function testBlameable(): void
     {
         $sport = new Article();
         $sport->setTitle('Sport');
 
-        $this->assertTrue($sport instanceof Blameable);
+        static::assertInstanceOf(Blameable::class, $sport);
 
         $sportComment = new Comment();
         $sportComment->setMessage('hello');
         $sportComment->setArticle($sport);
         $sportComment->setStatus(0);
 
-        $this->assertTrue($sportComment instanceof Blameable);
+        static::assertInstanceOf(Blameable::class, $sportComment);
 
         $this->em->persist($sport);
         $this->em->persist($sportComment);
         $this->em->flush();
         $this->em->clear();
 
-        $sport = $this->em->getRepository(self::ARTICLE)->findOneByTitle('Sport');
-        $this->assertEquals('testuser', $sport->getCreated());
-        $this->assertEquals('testuser', $sport->getUpdated());
-        $this->assertNull($sport->getPublished());
+        $sport = $this->em->getRepository(self::ARTICLE)->findOneBy(['title' => 'Sport']);
+        static::assertSame('testuser', $sport->getCreated());
+        static::assertSame('testuser', $sport->getUpdated());
+        static::assertNull($sport->getPublished());
 
-        $sportComment = $this->em->getRepository(self::COMMENT)->findOneByMessage('hello');
-        $this->assertEquals('testuser', $sportComment->getModified());
-        $this->assertNull($sportComment->getClosed());
+        $sportComment = $this->em->getRepository(self::COMMENT)->findOneBy(['message' => 'hello']);
+        static::assertSame('testuser', $sportComment->getModified());
+        static::assertNull($sportComment->getClosed());
 
         $sportComment->setStatus(1);
         $published = new Type();
@@ -74,13 +83,13 @@ class BlameableTest extends BaseTestCaseORM
         $this->em->flush();
         $this->em->clear();
 
-        $sportComment = $this->em->getRepository(self::COMMENT)->findOneByMessage('hello');
-        $this->assertEquals('testuser', $sportComment->getClosed());
+        $sportComment = $this->em->getRepository(self::COMMENT)->findOneBy(['message' => 'hello']);
+        static::assertSame('testuser', $sportComment->getClosed());
 
-        $this->assertEquals('testuser', $sport->getPublished());
+        static::assertSame('testuser', $sport->getPublished());
     }
 
-    public function testForcedValues()
+    public function testForcedValues(): void
     {
         $sport = new Article();
         $sport->setTitle('sport forced');
@@ -92,9 +101,9 @@ class BlameableTest extends BaseTestCaseORM
         $this->em->clear();
 
         $repo = $this->em->getRepository(self::ARTICLE);
-        $sport = $repo->findOneByTitle('sport forced');
-        $this->assertEquals('myuser', $sport->getCreated());
-        $this->assertEquals('myuser', $sport->getUpdated());
+        $sport = $repo->findOneBy(['title' => 'sport forced']);
+        static::assertSame('myuser', $sport->getCreated());
+        static::assertSame('myuser', $sport->getUpdated());
 
         $published = new Type();
         $published->setTitle('Published');
@@ -106,16 +115,16 @@ class BlameableTest extends BaseTestCaseORM
         $this->em->flush();
         $this->em->clear();
 
-        $sport = $repo->findOneByTitle('sport forced');
-        $this->assertEquals('myuser', $sport->getPublished());
+        $sport = $repo->findOneBy(['title' => 'sport forced']);
+        static::assertSame('myuser', $sport->getPublished());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::ARTICLE,
             self::COMMENT,
             self::TYPE,
-        );
+        ];
     }
 }

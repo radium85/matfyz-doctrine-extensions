@@ -1,22 +1,36 @@
 <?php
 
-namespace Gedmo\Translatable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Translatable\Issue;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Translatable\Fixture\Issue922\Post;
-use Doctrine\ORM\Query;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
+use Gedmo\Tests\Translatable\Fixture\Issue1123\BaseEntity;
+use Gedmo\Tests\Translatable\Fixture\Issue1123\ChildEntity;
+use Gedmo\Translatable\Entity\Translation;
 use Gedmo\Translatable\Query\TreeWalker\TranslationWalker;
-use Translatable\Fixture\Issue1123\BaseEntity;
-use Translatable\Fixture\Issue1123\ChildEntity;
+use Gedmo\Translatable\TranslatableListener;
 
-class Issue1123Test extends BaseTestCaseORM
+final class Issue1123Test extends BaseTestCaseORM
 {
-    const TRANSLATION = 'Gedmo\\Translatable\\Entity\\Translation';
-    const BASE_ENTITY = 'Translatable\\Fixture\\Issue1123\\BaseEntity';
-    const CHILD_ENTITY = 'Translatable\\Fixture\\Issue1123\\ChildEntity';
+    public const TRANSLATION = Translation::class;
+    public const BASE_ENTITY = BaseEntity::class;
+    public const CHILD_ENTITY = ChildEntity::class;
 
-    protected function setUp()
+    /**
+     * @var TranslatableListener
+     */
+    private $translatableListener;
+
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -27,13 +41,10 @@ class Issue1123Test extends BaseTestCaseORM
         $this->translatableListener->setTranslationFallback(true);
         $evm->addEventSubscriber($this->translatableListener);
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
     }
 
-    /**
-     * @test
-     */
-    public function shouldFindInheritedClassTranslations()
+    public function testShouldFindInheritedClassTranslations(): void
     {
         $repo = $this->em->getRepository(self::TRANSLATION);
 
@@ -56,27 +67,33 @@ class Issue1123Test extends BaseTestCaseORM
 
         // Find using the repository
         $translations = $repo->findTranslations($childEntity);
-        $this->assertCount(1, $translations);
-        $this->assertArraySubset(array('de' => array('childTitle' => $deTitle)), $translations);
+        static::assertCount(1, $translations);
+        static::assertArrayHasKey('de', $translations);
+        static::assertSame(['childTitle' => $deTitle], $translations['de']);
 
         // find using QueryBuilder
         $qb = $this->em->createQueryBuilder()->select('e')->from(self::CHILD_ENTITY, 'e');
 
         $query = $qb->getQuery();
-        $query->setHint(\Doctrine\ORM\Query::HINT_CUSTOM_OUTPUT_WALKER, 'Gedmo\Translatable\Query\TreeWalker\TranslationWalker');
+        $query->setHint(\Doctrine\ORM\Query::HINT_CUSTOM_OUTPUT_WALKER, TranslationWalker::class);
         $query->setHint(\Gedmo\Translatable\TranslatableListener::HINT_TRANSLATABLE_LOCALE, 'de');
         $query->setHint(\Gedmo\Translatable\TranslatableListener::HINT_FALLBACK, 1);
 
         $res = $query->getArrayResult();
-        $this->assertArraySubset(array('id' => 1, 'childTitle' => $deTitle, 'discr' => 'child'), $res[0]);
+        static::assertArrayHasKey('id', $res[0]);
+        static::assertArrayHasKey('childTitle', $res[0]);
+        static::assertArrayHasKey('discr', $res[0]);
+        static::assertSame(1, $res[0]['id']);
+        static::assertSame($deTitle, $res[0]['childTitle']);
+        static::assertSame('child', $res[0]['discr']);
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::TRANSLATION,
             self::BASE_ENTITY,
             self::CHILD_ENTITY,
-        );
+        ];
     }
 }

@@ -1,49 +1,51 @@
 <?php
 
-namespace Gedmo\Sluggable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Sluggable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Sluggable\Fixture\Identifier;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\Tests\Sluggable\Fixture\Identifier;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 
 /**
  * These are tests for Sluggable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class SluggableIdentifierTest extends BaseTestCaseORM
+final class SluggableIdentifierTest extends BaseTestCaseORM
 {
-    const TARGET = 'Sluggable\\Fixture\\Identifier';
+    public const TARGET = Identifier::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $evm = new EventManager();
         $evm->addEventSubscriber(new SluggableListener());
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
     }
 
-    /**
-     * @test
-     */
-    public function shouldBePossibleToSlugIdentifiers()
+    public function testShouldBePossibleToSlugIdentifiers(): void
     {
         $sport = new Identifier();
         $sport->setTitle('Sport');
         $this->em->persist($sport);
         $this->em->flush();
 
-        $this->assertEquals('sport', $sport->getId());
+        static::assertSame('sport', $sport->getId());
     }
 
-    /**
-     * @test
-     */
-    public function shouldPersistMultipleNonConflictingIdentifierSlugs()
+    public function testShouldPersistMultipleNonConflictingIdentifierSlugs(): void
     {
         $sport = new Identifier();
         $sport->setTitle('Sport');
@@ -54,14 +56,14 @@ class SluggableIdentifierTest extends BaseTestCaseORM
         $this->em->persist($sport2);
         $this->em->flush();
 
-        $this->assertEquals('sport', $sport->getId());
-        $this->assertEquals('sport_1', $sport2->getId());
+        static::assertSame('sport', $sport->getId());
+        static::assertSame('sport_1', $sport2->getId());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::TARGET,
-        );
+        ];
     }
 }

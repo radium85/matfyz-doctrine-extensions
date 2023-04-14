@@ -1,87 +1,95 @@
 <?php
 
-namespace Gedmo\Tree;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Tree;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Tree\Fixture\RootAssociationCategory;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
+use Gedmo\Tests\Tree\Fixture\RootAssociationCategory;
+use Gedmo\Tree\TreeListener;
 
 /**
  * These are tests for Tree behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class NestedTreeRootAssociationTest extends BaseTestCaseORM
+final class NestedTreeRootAssociationTest extends BaseTestCaseORM
 {
-    const CATEGORY = "Tree\\Fixture\\RootAssociationCategory";
+    public const CATEGORY = RootAssociationCategory::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $evm = new EventManager();
         $evm->addEventSubscriber(new TreeListener());
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
         $this->populate();
     }
 
-    public function testRootEntity()
+    public function testRootEntity(): void
     {
         $repo = $this->em->getRepository(self::CATEGORY);
 
         // Foods
-        $food = $repo->findOneByTitle('Food');
-        $this->assertEquals($food->getId(), $food->getRoot()->getId());
+        $food = $repo->findOneBy(['title' => 'Food']);
+        static::assertSame($food->getId(), $food->getRoot()->getId());
 
-        $fruits = $repo->findOneByTitle('Fruits');
-        $this->assertEquals($food->getId(), $fruits->getRoot()->getId());
+        $fruits = $repo->findOneBy(['title' => 'Fruits']);
+        static::assertSame($food->getId(), $fruits->getRoot()->getId());
 
-        $vegetables = $repo->findOneByTitle('Vegetables');
-        $this->assertEquals($food->getId(), $vegetables->getRoot()->getId());
+        $vegetables = $repo->findOneBy(['title' => 'Vegetables']);
+        static::assertSame($food->getId(), $vegetables->getRoot()->getId());
 
-        $carrots = $repo->findOneByTitle('Carrots');
-        $this->assertEquals($food->getId(), $carrots->getRoot()->getId());
+        $carrots = $repo->findOneBy(['title' => 'Carrots']);
+        static::assertSame($food->getId(), $carrots->getRoot()->getId());
 
-        $potatoes = $repo->findOneByTitle('Potatoes');
-        $this->assertEquals($food->getId(), $potatoes->getRoot()->getId());
+        $potatoes = $repo->findOneBy(['title' => 'Potatoes']);
+        static::assertSame($food->getId(), $potatoes->getRoot()->getId());
 
         // Sports
-        $sports = $repo->findOneByTitle('Sports');
-        $this->assertEquals($sports->getId(), $sports->getRoot()->getId());
+        $sports = $repo->findOneBy(['title' => 'Sports']);
+        static::assertSame($sports->getId(), $sports->getRoot()->getId());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::CATEGORY,
-        );
+        ];
     }
 
-    private function populate()
+    private function populate(): void
     {
         $root = new RootAssociationCategory();
-        $root->setTitle("Food");
+        $root->setTitle('Food');
 
         $root2 = new RootAssociationCategory();
-        $root2->setTitle("Sports");
+        $root2->setTitle('Sports');
 
         $child = new RootAssociationCategory();
-        $child->setTitle("Fruits");
+        $child->setTitle('Fruits');
         $child->setParent($root);
 
         $child2 = new RootAssociationCategory();
-        $child2->setTitle("Vegetables");
+        $child2->setTitle('Vegetables');
         $child2->setParent($root);
 
         $childsChild = new RootAssociationCategory();
-        $childsChild->setTitle("Carrots");
+        $childsChild->setTitle('Carrots');
         $childsChild->setParent($child2);
 
         $potatoes = new RootAssociationCategory();
-        $potatoes->setTitle("Potatoes");
+        $potatoes->setTitle('Potatoes');
         $potatoes->setParent($child2);
 
         $this->em->persist($root);

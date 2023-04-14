@@ -1,51 +1,59 @@
 <?php
 
-namespace Gedmo\Sluggable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Sluggable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Sluggable\Fixture\Position;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\Tests\Sluggable\Fixture\Position;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 
 /**
  * These are tests for Sluggable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class SluggablePositionTest extends BaseTestCaseORM
+final class SluggablePositionTest extends BaseTestCaseORM
 {
-    const POSITION = 'Sluggable\\Fixture\\Position';
+    public const POSITION = Position::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $evm = new EventManager();
         $evm->addEventSubscriber(new SluggableListener());
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
         $this->populate();
     }
 
-    public function testPositionedSlugOrder()
+    public function testPositionedSlugOrder(): void
     {
         $meta = $this->em->getClassMetadata(self::POSITION);
         $repo = $this->em->getRepository(self::POSITION);
 
         $object = $repo->find(1);
         $slug = $meta->getReflectionProperty('slug')->getValue($object);
-        $this->assertEquals('code-other-title-prop', $slug);
+        static::assertSame('code-other-title-prop', $slug);
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::POSITION,
-        );
+        ];
     }
 
-    private function populate()
+    private function populate(): void
     {
         $meta = $this->em->getClassMetadata(self::POSITION);
         $object = new Position();

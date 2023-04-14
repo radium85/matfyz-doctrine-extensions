@@ -1,26 +1,34 @@
 <?php
 
-namespace Gedmo\Tree;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Timestampable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Gedmo\Translatable\TranslatableListener;
+use Gedmo\Tests\Timestampable\Fixture\SupperClassExtension;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 use Gedmo\Timestampable\TimestampableListener;
-use Timestampable\Fixture\SupperClassExtension;
+use Gedmo\Translatable\Entity\Translation;
+use Gedmo\Translatable\TranslatableListener;
 
 /**
  * These are tests for Timestampable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class ProtectedPropertySupperclassTest extends BaseTestCaseORM
+final class ProtectedPropertySupperclassTest extends BaseTestCaseORM
 {
-    const SUPERCLASS = "Timestampable\\Fixture\\SupperClassExtension";
-    const TRANSLATION = "Gedmo\\Translatable\\Entity\\Translation";
+    public const SUPERCLASS = SupperClassExtension::class;
+    public const TRANSLATION = Translation::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -30,10 +38,10 @@ class ProtectedPropertySupperclassTest extends BaseTestCaseORM
         $evm->addEventSubscriber($translatableListener);
         $evm->addEventSubscriber(new TimestampableListener());
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
     }
 
-    public function testProtectedProperty()
+    public function testProtectedProperty(): void
     {
         $test = new SupperClassExtension();
         $test->setName('name');
@@ -45,16 +53,16 @@ class ProtectedPropertySupperclassTest extends BaseTestCaseORM
 
         $repo = $this->em->getRepository(self::TRANSLATION);
         $translations = $repo->findTranslations($test);
-        $this->assertCount(0, $translations);
+        static::assertCount(0, $translations);
 
-        $this->assertNotNull($test->getCreatedAt());
+        static::assertNotNull($test->getCreatedAt());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::TRANSLATION,
             self::SUPERCLASS,
-        );
+        ];
     }
 }

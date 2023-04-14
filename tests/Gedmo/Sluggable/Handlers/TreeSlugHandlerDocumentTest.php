@@ -1,23 +1,31 @@
 <?php
 
-namespace Gedmo\Sluggable;
+declare(strict_types=1);
 
-use Tool\BaseTestCaseMongoODM;
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Sluggable\Handlers;
+
 use Doctrine\Common\EventManager;
-use Sluggable\Fixture\Document\Handler\TreeSlug;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\Tests\Sluggable\Fixture\Document\Handler\TreeSlug;
+use Gedmo\Tests\Tool\BaseTestCaseMongoODM;
 
 /**
  * These are tests for sluggable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class TreeSlugHandlerDocumentTest extends BaseTestCaseMongoODM
+final class TreeSlugHandlerDocumentTest extends BaseTestCaseMongoODM
 {
-    const SLUG = 'Sluggable\\Fixture\\Document\\Handler\\TreeSlug';
+    public const SLUG = TreeSlug::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $evm = new EventManager();
@@ -26,55 +34,55 @@ class TreeSlugHandlerDocumentTest extends BaseTestCaseMongoODM
         $this->getMockDocumentManager($evm);
     }
 
-    public function testSlugGeneration()
+    public function testSlugGeneration(): void
     {
         $this->populate();
         $repo = $this->dm->getRepository(self::SLUG);
 
-        $food = $repo->findOneByTitle('Food');
-        $this->assertEquals('food', $food->getSlug());
+        $food = $repo->findOneBy(['title' => 'Food']);
+        static::assertSame('food', $food->getSlug());
 
-        $fruits = $repo->findOneByTitle('Fruits');
-        $this->assertEquals('food/fruits', $fruits->getSlug());
+        $fruits = $repo->findOneBy(['title' => 'Fruits']);
+        static::assertSame('food/fruits', $fruits->getSlug());
 
-        $oranges = $repo->findOneByTitle('Oranges');
-        $this->assertEquals('food/fruits/oranges', $oranges->getSlug());
+        $oranges = $repo->findOneBy(['title' => 'Oranges']);
+        static::assertSame('food/fruits/oranges', $oranges->getSlug());
 
-        $citrons = $repo->findOneByTitle('Citrons');
-        $this->assertEquals('food/fruits/citrons', $citrons->getSlug());
+        $citrons = $repo->findOneBy(['title' => 'Citrons']);
+        static::assertSame('food/fruits/citrons', $citrons->getSlug());
     }
 
-    public function testSlugUpdates()
+    public function testSlugUpdates(): void
     {
         $this->populate();
         $repo = $this->dm->getRepository(self::SLUG);
 
-        $fruits = $repo->findOneByTitle('Fruits');
+        $fruits = $repo->findOneBy(['title' => 'Fruits']);
         $fruits->setTitle('Fructis');
 
         $this->dm->persist($fruits);
         $this->dm->flush();
 
-        $this->assertEquals('food/fructis', $fruits->getSlug());
+        static::assertSame('food/fructis', $fruits->getSlug());
 
-        $oranges = $repo->findOneByTitle('Oranges');
-        $this->assertEquals('food/fructis/oranges', $oranges->getSlug());
+        $oranges = $repo->findOneBy(['title' => 'Oranges']);
+        static::assertSame('food/fructis/oranges', $oranges->getSlug());
 
-        $citrons = $repo->findOneByTitle('Citrons');
-        $this->assertEquals('food/fructis/citrons', $citrons->getSlug());
+        $citrons = $repo->findOneBy(['title' => 'Citrons']);
+        static::assertSame('food/fructis/citrons', $citrons->getSlug());
 
-        $food = $repo->findOneByTitle('Food');
+        $food = $repo->findOneBy(['title' => 'Food']);
         $food->setTitle('Foodissimo');
 
         $this->dm->persist($food);
         $this->dm->flush();
 
-        $this->assertEquals('foodissimo', $food->getSlug());
-        $this->assertEquals('foodissimo/fructis/oranges', $oranges->getSlug());
-        $this->assertEquals('foodissimo/fructis/citrons', $citrons->getSlug());
+        static::assertSame('foodissimo', $food->getSlug());
+        static::assertSame('foodissimo/fructis/oranges', $oranges->getSlug());
+        static::assertSame('foodissimo/fructis/citrons', $citrons->getSlug());
     }
 
-    private function populate()
+    private function populate(): void
     {
         $food = new TreeSlug();
         $food->setTitle('Food');

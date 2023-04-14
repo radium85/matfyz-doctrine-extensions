@@ -1,54 +1,71 @@
 <?php
 
-namespace Gedmo\Mapping;
+declare(strict_types=1);
 
-use Tree\Fixture\BehavioralCategory;
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Mapping;
+
+use Doctrine\ORM\EntityManager;
+use Gedmo\Tests\Tree\Fixture\BehavioralCategory;
+use Gedmo\Timestampable\TimestampableListener;
+use Gedmo\Translatable\Entity\Translation;
 
 /**
  * These are mapping extension tests
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class MappingTest extends \PHPUnit_Framework_TestCase
+final class MappingTest extends \PHPUnit\Framework\TestCase
 {
-    const TEST_ENTITY_CATEGORY = "Tree\Fixture\BehavioralCategory";
-    const TEST_ENTITY_TRANSLATION = "Gedmo\Translatable\Entity\Translation";
+    public const TEST_ENTITY_CATEGORY = BehavioralCategory::class;
+    public const TEST_ENTITY_TRANSLATION = Translation::class;
 
+    /**
+     * @var EntityManager
+     */
     private $em;
+
+    /**
+     * @var TimestampableListener
+     */
     private $timestampable;
 
-    public function setUp()
+    protected function setUp(): void
     {
         $config = new \Doctrine\ORM\Configuration();
         $config->setProxyDir(TESTS_TEMP_DIR);
         $config->setProxyNamespace('Gedmo\Mapping\Proxy');
-        //$this->markTestSkipped('Skipping according to a bug in annotation reader creation.');
+        // $this->markTestSkipped('Skipping according to a bug in annotation reader creation.');
         $config->setMetadataDriverImpl(new \Doctrine\ORM\Mapping\Driver\AnnotationDriver($_ENV['annotation_reader']));
 
-        $conn = array(
+        $conn = [
             'driver' => 'pdo_sqlite',
             'memory' => true,
-        );
+        ];
 
         $evm = new \Doctrine\Common\EventManager();
         $evm->addEventSubscriber(new \Gedmo\Translatable\TranslatableListener());
-        $this->timestampable = new \Gedmo\Timestampable\TimestampableListener();
+        $this->timestampable = new TimestampableListener();
         $evm->addEventSubscriber($this->timestampable);
         $evm->addEventSubscriber(new \Gedmo\Sluggable\SluggableListener());
         $evm->addEventSubscriber(new \Gedmo\Tree\TreeListener());
-        $this->em = \Doctrine\ORM\EntityManager::create($conn, $config, $evm);
+        $this->em = EntityManager::create($conn, $config, $evm);
 
         $schemaTool = new \Doctrine\ORM\Tools\SchemaTool($this->em);
-        $schemaTool->dropSchema(array());
-        $schemaTool->createSchema(array(
+        $schemaTool->dropSchema([]);
+        $schemaTool->createSchema([
             $this->em->getClassMetadata(self::TEST_ENTITY_CATEGORY),
             $this->em->getClassMetadata(self::TEST_ENTITY_TRANSLATION),
-        ));
+        ]);
     }
 
-    public function testNoCacheImplementationMapping()
+    public function testNoCacheImplementationMapping(): void
     {
         $food = new BehavioralCategory();
         $food->setTitle('Food');
@@ -59,6 +76,6 @@ class MappingTest extends \PHPUnit_Framework_TestCase
             $this->em,
             self::TEST_ENTITY_CATEGORY
         );
-        $this->assertCount(0, $conf);
+        static::assertCount(0, $conf);
     }
 }

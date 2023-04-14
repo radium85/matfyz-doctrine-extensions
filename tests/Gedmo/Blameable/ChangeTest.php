@@ -1,25 +1,36 @@
 <?php
 
-namespace Gedmo\Blameable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Blameable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Blameable\Fixture\Entity\TitledArticle;
+use Gedmo\Blameable\BlameableListener;
+use Gedmo\Tests\Blameable\Fixture\Entity\TitledArticle;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 
 /**
  * These are tests for Blameable behavior
  *
  * @author Ivan Borzenkov <ivan.borzenkov@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class ChangeTest extends BaseTestCaseORM
+final class ChangeTest extends BaseTestCaseORM
 {
-    const FIXTURE = "Blameable\\Fixture\\Entity\\TitledArticle";
+    public const FIXTURE = TitledArticle::class;
 
+    /**
+     * @var BlameableListener
+     */
     private $listener;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -28,10 +39,10 @@ class ChangeTest extends BaseTestCaseORM
         $this->listener->setUserValue('testuser');
         $evm->addEventSubscriber($this->listener);
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
     }
 
-    public function testChange()
+    public function testChange(): void
     {
         $test = new TitledArticle();
         $test->setTitle('Test');
@@ -41,29 +52,29 @@ class ChangeTest extends BaseTestCaseORM
         $this->em->flush();
         $this->em->clear();
 
-        $test = $this->em->getRepository(self::FIXTURE)->findOneByTitle('Test');
+        $test = $this->em->getRepository(self::FIXTURE)->findOneBy(['title' => 'Test']);
         $test->setTitle('New Title');
         $this->em->persist($test);
         $this->em->flush();
         $this->em->clear();
-        //Changed
-        $this->assertEquals('testuser', $test->getChtitle());
+        // Changed
+        static::assertSame('testuser', $test->getChtitle());
 
         $this->listener->setUserValue('otheruser');
 
-        $test = $this->em->getRepository(self::FIXTURE)->findOneByTitle('New Title');
+        $test = $this->em->getRepository(self::FIXTURE)->findOneBy(['title' => 'New Title']);
         $test->setText('New Text');
         $this->em->persist($test);
         $this->em->flush();
         $this->em->clear();
-        //Not Changed
-        $this->assertEquals('testuser', $test->getChtitle());
+        // Not Changed
+        static::assertSame('testuser', $test->getChtitle());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::FIXTURE,
-        );
+        ];
     }
 }

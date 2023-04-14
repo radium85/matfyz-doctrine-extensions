@@ -1,17 +1,30 @@
 <?php
 
-namespace Tool;
+declare(strict_types=1);
 
-use Doctrine\ODM\MongoDB\Mapping\Driver\AnnotationDriver;
-use Doctrine\ODM\MongoDB\DocumentManager;
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Tool;
+
 use Doctrine\Common\EventManager;
-use Doctrine\MongoDB\Connection;
-use Doctrine\ODM\MongoDB\Repository\DefaultRepositoryFactory;
-use Gedmo\Translatable\TranslatableListener;
-use Gedmo\Sluggable\SluggableListener;
-use Gedmo\Timestampable\TimestampableListener;
-use Gedmo\SoftDeleteable\SoftDeleteableListener;
+use Doctrine\ODM\MongoDB\Configuration;
+use Doctrine\ODM\MongoDB\DocumentManager;
+use Doctrine\ODM\MongoDB\Mapping\Driver\AnnotationDriver;
+use Doctrine\ODM\MongoDB\Mapping\Driver\AttributeDriver;
+use Doctrine\Persistence\Mapping\Driver\MappingDriver;
 use Gedmo\Loggable\LoggableListener;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\SoftDeleteable\Filter\ODM\SoftDeleteableFilter;
+use Gedmo\SoftDeleteable\SoftDeleteableListener;
+use Gedmo\Timestampable\TimestampableListener;
+use Gedmo\Translatable\TranslatableListener;
+use MongoDB\Client;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 
 /**
  * Base test case contains common mock objects
@@ -19,101 +32,125 @@ use Gedmo\Loggable\LoggableListener;
  * ORM object manager
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-abstract class BaseTestCaseMongoODM extends \PHPUnit_Framework_TestCase
+abstract class BaseTestCaseMongoODM extends \PHPUnit\Framework\TestCase
 {
     /**
-     * @var DocumentManager
+     * @var DocumentManager|null
      */
     protected $dm;
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function setUp()
+    protected function setUp(): void
     {
-        if (!class_exists('Mongo')) {
-            $this->markTestSkipped('Missing Mongo extension.');
+        if (!extension_loaded('mongodb')) {
+            static::markTestSkipped('Missing Mongo extension.');
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    protected function tearDown()
+    protected function tearDown(): void
     {
-        if ($this->dm) {
-            foreach ($this->dm->getDocumentDatabases() as $db) {
-                foreach ($db->listCollections() as $collection) {
-                    $collection->drop();
-                }
-            }
-            $this->dm->getConnection()->close();
-            $this->dm = null;
+        if (null === $this->dm) {
+            return;
         }
+
+        foreach ($this->dm->getDocumentDatabases() as $documentDatabase) {
+            $documentDatabase->drop();
+        }
+
+        $this->dm = null;
     }
 
     /**
-     * DocumentManager mock object together with
-     * annotation mapping driver and database
-     *
-     * @param EventManager $evm
-     *
-     * @return DocumentManager
+     * DocumentManager mock object together with annotation mapping driver and database.
      */
-    protected function getMockDocumentManager(EventManager $evm = null, $config = null)
+    protected function getMockDocumentManager(?EventManager $evm = null, ?Configuration $config = null): DocumentManager
     {
-        $conn = new Connection();
+        $client = new Client($_ENV['MONGODB_SERVER'], [], ['typeMap' => DocumentManager::CLIENT_TYPEMAP]);
 
-        $config = $config ? $config : $this->getMockAnnotatedConfig();
+        $config = $config ?: $this->getMockAnnotatedConfig();
+        $evm = $evm ?: $this->getEventManager();
 
-        try {
-            $this->dm = DocumentManager::create($conn, $config, $evm ?: $this->getEventManager());
-            $this->dm->getConnection()->connect();
-        } catch (\MongoException $e) {
-            $this->markTestSkipped('Doctrine MongoDB ODM failed to connect');
-        }
+        return $this->dm = DocumentManager::create($client, $config, $evm);
+    }
 
-        return $this->dm;
+    protected function getDefaultDocumentManager(EventManager $evm = null): DocumentManager
+    {
+        return $this->getMockDocumentManager($evm, $this->getDefaultConfiguration());
     }
 
     /**
      * DocumentManager mock object with
      * annotation mapping driver
-     *
-     * @param EventManager $evm
-     *
-     * @return DocumentManager
      */
-    protected function getMockMappedDocumentManager(EventManager $evm = null, $config = null)
+    protected function getMockMappedDocumentManager(EventManager $evm = null, Configuration $config = null): DocumentManager
     {
-        $conn = $this->getMockBuilder('Doctrine\\MongoDB\\Connection')->getMock();
+        $conn = $this->createStub(Client::class);
 
-        $config = $config ? $config : $this->getMockAnnotatedConfig();
+        $config = $config ?? $this->getMockAnnotatedConfig();
 
-        $this->dm = DocumentManager::create($conn, $config, $evm ?: $this->getEventManager());
+        $this->dm = DocumentManager::create($conn, $config, $evm ?? $this->getEventManager());
 
         return $this->dm;
     }
 
     /**
      * Creates default mapping driver
-     *
-     * @return \Doctrine\ORM\Mapping\Driver\Driver
      */
-    protected function getMetadataDriverImplementation()
+    protected function getMetadataDriverImplementation(): MappingDriver
     {
         return new AnnotationDriver($_ENV['annotation_reader']);
     }
 
     /**
-     * Build event manager
-     *
-     * @return EventManager
+     * Get annotation mapping configuration
      */
-    private function getEventManager()
+    protected function getMockAnnotatedConfig(): Configuration
+    {
+        $config = new Configuration();
+        $config->addFilter('softdeleteable', SoftDeleteableFilter::class);
+        $config->setProxyDir(TESTS_TEMP_DIR);
+        $config->setHydratorDir(TESTS_TEMP_DIR);
+        $config->setProxyNamespace('Proxy');
+        $config->setHydratorNamespace('Hydrator');
+        $config->setDefaultDB('gedmo_extensions_test');
+        $config->setAutoGenerateProxyClasses(Configuration::AUTOGENERATE_EVAL);
+        $config->setAutoGenerateHydratorClasses(Configuration::AUTOGENERATE_EVAL);
+        $config->setMetadataDriverImpl($this->getMetadataDriverImplementation());
+        $config->setMetadataCache(new ArrayAdapter());
+
+        return $config;
+    }
+
+    protected function getDefaultConfiguration(): Configuration
+    {
+        $config = new Configuration();
+        $config->addFilter('softdeleteable', SoftDeleteableFilter::class);
+        $config->setProxyDir(TESTS_TEMP_DIR);
+        $config->setHydratorDir(TESTS_TEMP_DIR);
+        $config->setProxyNamespace('Proxy');
+        $config->setHydratorNamespace('Hydrator');
+        $config->setDefaultDB('gedmo_extensions_test');
+        $config->setAutoGenerateProxyClasses(Configuration::AUTOGENERATE_EVAL);
+        $config->setAutoGenerateHydratorClasses(Configuration::AUTOGENERATE_EVAL);
+        $config->setMetadataDriverImpl($this->getMetadataDefaultDriverImplementation());
+        $config->setMetadataCache(new ArrayAdapter());
+
+        return $config;
+    }
+
+    private function getMetadataDefaultDriverImplementation(): MappingDriver
+    {
+        if (PHP_VERSION_ID >= 80000 && class_exists(AttributeDriver::class)) {
+            return new AttributeDriver([]);
+        }
+
+        return new AnnotationDriver($_ENV['annotation_reader']);
+    }
+
+    /**
+     * Build event manager
+     */
+    private function getEventManager(): EventManager
     {
         $evm = new EventManager();
         $evm->addEventSubscriber(new SluggableListener());
@@ -123,25 +160,5 @@ abstract class BaseTestCaseMongoODM extends \PHPUnit_Framework_TestCase
         $evm->addEventSubscriber(new SoftDeleteableListener());
 
         return $evm;
-    }
-
-    /**
-     * Get annotation mapping configuration
-     *
-     * @return Doctrine\ORM\Configuration
-     */
-    protected function getMockAnnotatedConfig()
-    {
-        $config = new \Doctrine\ODM\MongoDB\Configuration();
-        $config->addFilter("softdeleteable", 'Gedmo\\SoftDeleteable\\Filter\\ODM\\SoftDeleteableFilter');
-        $config->setProxyDir(__DIR__."/../../temp");
-        $config->setHydratorDir(__DIR__."/../../temp");
-        $config->setProxyNamespace("Proxy");
-        $config->setHydratorNamespace("Hydrator");
-        $config->setDefaultDB("gedmo_extensions_test");
-        $config->setAutoGenerateProxyClasses(true);
-        $config->setAutoGenerateHydratorClasses(true);
-        $config->setMetadataDriverImpl($this->getMetadataDriverImplementation());
-        return $config;
     }
 }

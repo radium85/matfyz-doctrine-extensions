@@ -1,30 +1,46 @@
 <?php
 
-namespace Gedmo\Sluggable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Sluggable;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Gedmo\Translatable\Translatable;
+use Gedmo\Sluggable\Sluggable;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\Tests\Sluggable\Fixture\TransArticleManySlug;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 use Gedmo\Translatable\Entity\Translation;
+use Gedmo\Translatable\Translatable;
 use Gedmo\Translatable\TranslatableListener;
-use Sluggable\Fixture\TransArticleManySlug;
 
 /**
  * These are tests for Sluggable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class TranslatableManySlugTest extends BaseTestCaseORM
+final class TranslatableManySlugTest extends BaseTestCaseORM
 {
+    public const ARTICLE = TransArticleManySlug::class;
+    public const TRANSLATION = Translation::class;
+
+    /**
+     * @var int|null
+     */
     private $articleId;
+
+    /**
+     * @var TranslatableListener
+     */
     private $translatableListener;
 
-    const ARTICLE = 'Sluggable\\Fixture\\TransArticleManySlug';
-    const TRANSLATION = 'Gedmo\\Translatable\\Entity\\Translation';
-
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -34,20 +50,20 @@ class TranslatableManySlugTest extends BaseTestCaseORM
         $evm->addEventSubscriber(new SluggableListener());
         $evm->addEventSubscriber($this->translatableListener);
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
         $this->populate();
     }
 
-    public function testSlugAndTranslation()
+    public function testSlugAndTranslation(): void
     {
         $article = $this->em->find(self::ARTICLE, $this->articleId);
-        $this->assertTrue($article instanceof Translatable && $article instanceof Sluggable);
-        $this->assertEquals('the-title-my-code', $article->getSlug());
-        $this->assertEquals('the-unique-title', $article->getUniqueSlug());
+        static::assertTrue($article instanceof Translatable && $article instanceof Sluggable);
+        static::assertSame('the-title-my-code', $article->getSlug());
+        static::assertSame('the-unique-title', $article->getUniqueSlug());
         $repo = $this->em->getRepository(self::TRANSLATION);
 
         $translations = $repo->findTranslations($article);
-        $this->assertCount(0, $translations);
+        static::assertCount(0, $translations);
 
         $article = $this->em->find(self::ARTICLE, $this->articleId);
         $article->setTranslatableLocale('de_DE');
@@ -60,17 +76,17 @@ class TranslatableManySlugTest extends BaseTestCaseORM
 
         $repo = $this->em->getRepository(self::TRANSLATION);
         $translations = $repo->findTranslations($article);
-        $this->assertCount(1, $translations);
-        $this->assertArrayHasKey('de_DE', $translations);
-        $this->assertCount(3, $translations['de_DE']);
+        static::assertCount(1, $translations);
+        static::assertArrayHasKey('de_DE', $translations);
+        static::assertCount(3, $translations['de_DE']);
 
-        $this->assertEquals('title in de', $translations['de_DE']['title']);
+        static::assertSame('title in de', $translations['de_DE']['title']);
 
-        $this->assertArrayHasKey('slug', $translations['de_DE']);
-        $this->assertEquals('title-in-de-code-in-de', $translations['de_DE']['slug']);
+        static::assertArrayHasKey('slug', $translations['de_DE']);
+        static::assertSame('title-in-de-code-in-de', $translations['de_DE']['slug']);
     }
 
-    public function testUniqueness()
+    public function testUniqueness(): void
     {
         $a0 = new TransArticleManySlug();
         $a0->setTitle('the title');
@@ -87,22 +103,22 @@ class TranslatableManySlugTest extends BaseTestCaseORM
         $this->em->persist($a1);
         $this->em->flush();
 
-        $this->assertEquals('title', $a0->getUniqueSlug());
-        $this->assertEquals('title-1', $a1->getUniqueSlug());
-       // if its translated maybe should be different
-       $this->assertEquals('the-title-my-code-1', $a0->getSlug());
-        $this->assertEquals('the-title-my-code-2', $a1->getSlug());
+        static::assertSame('title', $a0->getUniqueSlug());
+        static::assertSame('title-1', $a1->getUniqueSlug());
+        // if its translated maybe should be different
+        static::assertSame('the-title-my-code-1', $a0->getSlug());
+        static::assertSame('the-title-my-code-2', $a1->getSlug());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::ARTICLE,
             self::TRANSLATION,
-        );
+        ];
     }
 
-    private function populate()
+    private function populate(): void
     {
         $article = new TransArticleManySlug();
         $article->setTitle('the title');

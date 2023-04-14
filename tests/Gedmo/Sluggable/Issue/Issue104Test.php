@@ -1,36 +1,37 @@
 <?php
 
-namespace Gedmo\Sluggable;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Sluggable\Issue;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
-use Sluggable\Fixture\Issue104\Car;
+use Gedmo\Exception\InvalidMappingException;
+use Gedmo\Sluggable\SluggableListener;
+use Gedmo\Tests\Sluggable\Fixture\Issue104\Car;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
 
 /**
  * These are tests for Sluggable behavior
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class Issue104Test extends BaseTestCaseORM
+final class Issue104Test extends BaseTestCaseORM
 {
-    const CAR = 'Sluggable\\Fixture\\Issue104\\Car';
+    public const CAR = Car::class;
 
-    protected function setUp()
+    public function testShouldThrowAnExceptionWhenMappedSuperclassProtectedProperty(): void
     {
-        parent::setUp();
-    }
-
-    /**
-     * @test
-     * @expectedException Gedmo\Exception\InvalidMappingException
-     */
-    public function shouldThrowAnExceptionWhenMappedSuperclassProtectedProperty()
-    {
+        $this->expectException(InvalidMappingException::class);
         $evm = new EventManager();
         $evm->addEventSubscriber(new SluggableListener());
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
 
         $audi = new Car();
         $audi->setDescription('audi car');
@@ -40,10 +41,10 @@ class Issue104Test extends BaseTestCaseORM
         $this->em->flush();
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::CAR,
-        );
+        ];
     }
 }

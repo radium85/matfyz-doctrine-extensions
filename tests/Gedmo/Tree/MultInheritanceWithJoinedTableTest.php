@@ -1,9 +1,23 @@
 <?php
 
-namespace Gedmo\Tree;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Tree;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseORM;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
+use Gedmo\Tests\Tree\Fixture\Role;
+use Gedmo\Tests\Tree\Fixture\User;
+use Gedmo\Tests\Tree\Fixture\UserGroup;
+use Gedmo\Tests\Tree\Fixture\UserLDAP;
+use Gedmo\Tree\TreeListener;
 
 /**
  * These are tests for Tree behavior
@@ -11,17 +25,20 @@ use Tool\BaseTestCaseORM;
  * JOINED table inheritance mapping bug on Tree;
  *
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class MultInheritanceWithJoinedTableTest extends BaseTestCaseORM
+final class MultInheritanceWithJoinedTableTest extends BaseTestCaseORM
 {
-    const USER = "Tree\\Fixture\\User";
-    const GROUP = "Tree\\Fixture\\UserGroup";
-    const ROLE = "Tree\\Fixture\\Role";
-    const USERLDAP = "Tree\\Fixture\\UserLDAP";
+    public const USER = User::class;
+    public const GROUP = UserGroup::class;
+    public const ROLE = Role::class;
+    public const USERLDAP = UserLDAP::class;
 
-    protected function setUp()
+    /**
+     * @var TreeListener
+     */
+    private $tree;
+
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -29,35 +46,29 @@ class MultInheritanceWithJoinedTableTest extends BaseTestCaseORM
         $this->tree = new TreeListener();
         $evm->addEventSubscriber($this->tree);
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
         $this->populate();
     }
 
-    /**
-     * @test
-     */
-    public function shouldHandleMultilevelInheritance()
+    public function testShouldHandleMultilevelInheritance(): void
     {
-        $admins = $this->em->getRepository(self::GROUP)->findOneByName('Admins');
+        $admins = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Admins']);
         $adminRight = $admins->getRight();
-        $userLdap = new \Tree\Fixture\UserLDAP('testname');
+        $userLdap = new \Gedmo\Tests\Tree\Fixture\UserLDAP('testname');
         $userLdap->init();
         $userLdap->setParent($admins);
         $this->em->persist($userLdap);
         $this->em->flush();
         $this->em->clear();
 
-        $admins = $this->em->getRepository(self::GROUP)->findOneByName('Admins');
-        self::assertNotEquals($adminRight, $admins->getRight());
+        $admins = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Admins']);
+        static::assertNotSame($adminRight, $admins->getRight());
     }
 
-    /**
-     * @test
-     */
-    public function shouldBeAbleToPopulateTree()
+    public function testShouldBeAbleToPopulateTree(): void
     {
-        $admins = $this->em->getRepository(self::GROUP)->findOneByName('Admins');
-        $user3 = new \Tree\Fixture\User('user3@test.com', 'secret');
+        $admins = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Admins']);
+        $user3 = new \Gedmo\Tests\Tree\Fixture\User('user3@test.com', 'secret');
         $user3->init();
         $user3->setParent($admins);
 
@@ -67,67 +78,67 @@ class MultInheritanceWithJoinedTableTest extends BaseTestCaseORM
 
         // run tree consistence checks
 
-        $everyBody = $this->em->getRepository(self::GROUP)->findOneByName('Everybody');
-        $this->assertEquals(1, $everyBody->getLeft());
-        $this->assertEquals(14, $everyBody->getRight());
-        $this->assertEquals(0, $everyBody->getLevel());
+        $everyBody = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Everybody']);
+        static::assertSame(1, $everyBody->getLeft());
+        static::assertSame(14, $everyBody->getRight());
+        static::assertSame(0, $everyBody->getLevel());
 
-        $admins = $this->em->getRepository(self::GROUP)->findOneByName('Admins');
-        $this->assertEquals(2, $admins->getLeft());
-        $this->assertEquals(7, $admins->getRight());
-        $this->assertEquals(1, $admins->getLevel());
+        $admins = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Admins']);
+        static::assertSame(2, $admins->getLeft());
+        static::assertSame(7, $admins->getRight());
+        static::assertSame(1, $admins->getLevel());
 
-        $visitors = $this->em->getRepository(self::GROUP)->findOneByName('Visitors');
-        $this->assertEquals(8, $visitors->getLeft());
-        $this->assertEquals(13, $visitors->getRight());
-        $this->assertEquals(1, $visitors->getLevel());
+        $visitors = $this->em->getRepository(self::GROUP)->findOneBy(['name' => 'Visitors']);
+        static::assertSame(8, $visitors->getLeft());
+        static::assertSame(13, $visitors->getRight());
+        static::assertSame(1, $visitors->getLevel());
 
-        $user0 = $this->em->getRepository(self::USER)->findOneByEmail('user0@test.com');
-        $this->assertEquals(3, $user0->getLeft());
-        $this->assertEquals(4, $user0->getRight());
-        $this->assertEquals(2, $user0->getLevel());
+        $user0 = $this->em->getRepository(self::USER)->findOneBy(['email' => 'user0@test.com']);
+        static::assertSame(3, $user0->getLeft());
+        static::assertSame(4, $user0->getRight());
+        static::assertSame(2, $user0->getLevel());
 
-        $user1 = $this->em->getRepository(self::USER)->findOneByEmail('user1@test.com');
-        $this->assertEquals(9, $user1->getLeft());
-        $this->assertEquals(10, $user1->getRight());
-        $this->assertEquals(2, $user1->getLevel());
+        $user1 = $this->em->getRepository(self::USER)->findOneBy(['email' => 'user1@test.com']);
+        static::assertSame(9, $user1->getLeft());
+        static::assertSame(10, $user1->getRight());
+        static::assertSame(2, $user1->getLevel());
 
-        $user2 = $this->em->getRepository(self::USER)->findOneByEmail('user2@test.com');
-        $this->assertEquals(11, $user2->getLeft());
-        $this->assertEquals(12, $user2->getRight());
-        $this->assertEquals(2, $user2->getLevel());
+        $user2 = $this->em->getRepository(self::USER)->findOneBy(['email' => 'user2@test.com']);
+        static::assertSame(11, $user2->getLeft());
+        static::assertSame(12, $user2->getRight());
+        static::assertSame(2, $user2->getLevel());
 
-        $user3 = $this->em->getRepository(self::USER)->findOneByEmail('user3@test.com');
-        $this->assertEquals(5, $user3->getLeft());
-        $this->assertEquals(6, $user3->getRight());
-        $this->assertEquals(2, $user3->getLevel());
+        $user3 = $this->em->getRepository(self::USER)->findOneBy(['email' => 'user3@test.com']);
+        static::assertSame(5, $user3->getLeft());
+        static::assertSame(6, $user3->getRight());
+        static::assertSame(2, $user3->getLevel());
     }
 
-    protected function getUsedEntityFixtures()
+    protected function getUsedEntityFixtures(): array
     {
-        return array(
+        return [
             self::USER,
             self::GROUP,
             self::ROLE,
             self::USERLDAP,
-        );
+        ];
     }
 
-    private function populate()
+    private function populate(): void
     {
-        $everyBody = new \Tree\Fixture\UserGroup('Everybody');
-        $admins = new \Tree\Fixture\UserGroup('Admins');
+        $everyBody = new \Gedmo\Tests\Tree\Fixture\UserGroup('Everybody');
+        $admins = new \Gedmo\Tests\Tree\Fixture\UserGroup('Admins');
         $admins->setParent($everyBody);
-        $visitors = new \Tree\Fixture\UserGroup('Visitors');
+        $visitors = new \Gedmo\Tests\Tree\Fixture\UserGroup('Visitors');
         $visitors->setParent($everyBody);
 
-        $user0 = new \Tree\Fixture\User('user0@test.com', 'secret');
+        $user0 = new \Gedmo\Tests\Tree\Fixture\User('user0@test.com', 'secret');
         $user0->init();
         $user0->setParent($admins);
-        $user1 = new \Tree\Fixture\User('user1@test.com', 'secret');
+        $user1 = new \Gedmo\Tests\Tree\Fixture\User('user1@test.com', 'secret');
         $user1->init();
         $user1->setParent($visitors);
-        $user2 = new \Tree\Fixture\User('user2@test.com', 'secret');
+        $user2 = new \Gedmo\Tests\Tree\Fixture\User('user2@test.com', 'secret');
         $user2->init();
         $user2->setParent($visitors);
 

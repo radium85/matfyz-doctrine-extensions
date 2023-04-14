@@ -1,8 +1,14 @@
+.php-cs-fixer.cache
+bin
+vendor
+composer.lock
+phpstan.neon
+tests/.phpunit.result.cache
 tests/phpunit.xml
-tests/temp/*.php
-tests/temp/*.log
-/vendor
-/bin
-/composer.lock
-/composer.phar
-.idea
+
+#==============================================================================#
+# IDEs                                                                         #
+#==============================================================================#
+
+/nbproject
+/.idea

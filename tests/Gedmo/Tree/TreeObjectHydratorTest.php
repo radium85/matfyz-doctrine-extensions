@@ -1,39 +1,49 @@
 <?php
 
-namespace Gedmo\Tree;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Tree;
 
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\Logging\DebugStack;
 use Doctrine\ORM\Query;
+use Gedmo\Tests\Tool\BaseTestCaseORM;
+use Gedmo\Tests\Tree\Fixture\Category;
+use Gedmo\Tests\Tree\Fixture\RootCategory;
 use Gedmo\Tree\Entity\Repository\NestedTreeRepository;
-use Tool\BaseTestCaseORM;
-use Tree\Fixture\RootCategory;
+use Gedmo\Tree\Hydrator\ORM\TreeObjectHydrator;
+use Gedmo\Tree\TreeListener;
 
 /**
  * Tests the tree object hydrator
  *
  * @author Ilija Tovilo <ilija.tovilo@me.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class TreeObjectHydratorTest extends BaseTestCaseORM
+final class TreeObjectHydratorTest extends BaseTestCaseORM
 {
-    const CATEGORY = "Tree\\Fixture\\Category";
-    const ROOT_CATEGORY = "Tree\\Fixture\\RootCategory";
+    public const CATEGORY = Category::class;
+    public const ROOT_CATEGORY = RootCategory::class;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $evm = new EventManager();
         $evm->addEventSubscriber(new TreeListener());
 
-        $this->getMockSqliteEntityManager($evm);
+        $this->getDefaultMockSqliteEntityManager($evm);
 
-        $this->em->getConfiguration()->addCustomHydrationMode('tree', 'Gedmo\Tree\Hydrator\ORM\TreeObjectHydrator');
+        $this->em->getConfiguration()->addCustomHydrationMode('tree', TreeObjectHydrator::class);
     }
 
-    public function testFullTreeHydration()
+    public function testFullTreeHydration(): void
     {
         $this->populate();
         $this->em->clear();
@@ -49,41 +59,41 @@ class TreeObjectHydratorTest extends BaseTestCaseORM
             ->setHint(Query::HINT_INCLUDE_META_COLUMNS, true)
             ->getResult('tree');
 
-        $this->assertEquals(count($result), 1);
+        static::assertCount(1, $result);
 
         $food = $result[0];
-        $this->assertEquals($food->getTitle(), 'Food');
-        $this->assertEquals(count($food->getChildren()), 4);
+        static::assertSame('Food', $food->getTitle());
+        static::assertCount(4, $food->getChildren());
 
         $fruits = $food->getChildren()->get(0);
-        $this->assertEquals($fruits->getTitle(), 'Fruits');
-        $this->assertEquals(count($fruits->getChildren()), 2);
+        static::assertSame('Fruits', $fruits->getTitle());
+        static::assertCount(2, $fruits->getChildren());
 
         $vegetables = $food->getChildren()->get(1);
-        $this->assertEquals($vegetables->getTitle(), 'Vegetables');
-        $this->assertEquals(count($vegetables->getChildren()), 0);
+        static::assertSame('Vegetables', $vegetables->getTitle());
+        static::assertCount(0, $vegetables->getChildren());
 
         $milk = $food->getChildren()->get(2);
-        $this->assertEquals($milk->getTitle(), 'Milk');
-        $this->assertEquals(count($milk->getChildren()), 0);
+        static::assertSame('Milk', $milk->getTitle());
+        static::assertCount(0, $milk->getChildren());
 
         $meat = $food->getChildren()->get(3);
-        $this->assertEquals($meat->getTitle(), 'Meat');
-        $this->assertEquals(count($meat->getChildren()), 0);
+        static::assertSame('Meat', $meat->getTitle());
+        static::assertCount(0, $meat->getChildren());
 
         $oranges = $fruits->getChildren()->get(0);
-        $this->assertEquals($oranges->getTitle(), 'Oranges');
-        $this->assertEquals(count($oranges->getChildren()), 0);
+        static::assertSame('Oranges', $oranges->getTitle());
+        static::assertCount(0, $oranges->getChildren());
 
         $citrons = $fruits->getChildren()->get(1);
-        $this->assertEquals($citrons->getTitle(), 'Citrons');
-        $this->assertEquals(count($citrons->getChildren()), 0);
+        static::assertSame('Citrons', $citrons->getTitle());
+        static::assertCount(0, $citrons->getChildren());
 
         // Make sure only one query was executed
-        $this->assertEquals(count($stack->queries), 1);
+        static::assertCount(1, $stack->queries);
     }
 
-    public function testPartialTreeHydration()
+    public function testPartialTreeHydration(): void
     {
         $this->populate();
         $this->em->clear();
@@ -94,30 +104,30 @@ class TreeObjectHydratorTest extends BaseTestCaseORM
         /** @var NestedTreeRepository $repo */
         $repo = $this->em->getRepository(self::ROOT_CATEGORY);
 
-        $fruits = $repo->findOneBy(array('title' => 'Fruits'));
+        $fruits = $repo->findOneBy(['title' => 'Fruits']);
 
         $result = $repo->getChildrenQuery($fruits, false, null, 'ASC', true)
             ->setHint(Query::HINT_INCLUDE_META_COLUMNS, true)
             ->getResult('tree');
 
-        $this->assertEquals(count($result), 1);
+        static::assertCount(1, $result);
 
         $fruits = $result[0];
-        $this->assertEquals($fruits->getTitle(), 'Fruits');
-        $this->assertEquals(count($fruits->getChildren()), 2);
+        static::assertSame('Fruits', $fruits->getTitle());
+        static::assertCount(2, $fruits->getChildren());
 
         $oranges = $fruits->getChildren()->get(0);
-        $this->assertEquals($oranges->getTitle(), 'Oranges');
-        $this->assertEquals(count($oranges->getChildren()), 0);
+        static::assertSame('Oranges', $oranges->getTitle());
+        static::assertCount(0, $oranges->getChildren());
 
         $citrons = $fruits->getChildren()->get(1);
-        $this->assertEquals($citrons->getTitle(), 'Citrons');
-        $this->assertEquals(count($citrons->getChildren()), 0);
+        static::assertSame('Citrons', $citrons->getTitle());
+        static::assertCount(0, $citrons->getChildren());
 
-        $this->assertEquals(count($stack->queries), 2);
+        static::assertCount(2, $stack->queries);
     }
 
-    public function testMultipleRootNodesTreeHydration()
+    public function testMultipleRootNodesTreeHydration(): void
     {
         $this->populate();
         $this->em->clear();
@@ -128,42 +138,50 @@ class TreeObjectHydratorTest extends BaseTestCaseORM
         /** @var NestedTreeRepository $repo */
         $repo = $this->em->getRepository(self::ROOT_CATEGORY);
 
-        $food = $repo->findOneBy(array('title' => 'Food'));
+        $food = $repo->findOneBy(['title' => 'Food']);
 
         $result = $repo->getChildrenQuery($food)
             ->setHint(Query::HINT_INCLUDE_META_COLUMNS, true)
             ->getResult('tree');
 
-        $this->assertEquals(count($result), 4);
+        static::assertCount(4, $result);
 
         $fruits = $result[0];
-        $this->assertEquals($fruits->getTitle(), 'Fruits');
-        $this->assertEquals(count($fruits->getChildren()), 2);
+        static::assertSame('Fruits', $fruits->getTitle());
+        static::assertCount(2, $fruits->getChildren());
 
         $vegetables = $result[1];
-        $this->assertEquals($vegetables->getTitle(), 'Vegetables');
-        $this->assertEquals(count($vegetables->getChildren()), 0);
+        static::assertSame('Vegetables', $vegetables->getTitle());
+        static::assertCount(0, $vegetables->getChildren());
 
         $milk = $result[2];
-        $this->assertEquals($milk->getTitle(), 'Milk');
-        $this->assertEquals(count($milk->getChildren()), 0);
+        static::assertSame('Milk', $milk->getTitle());
+        static::assertCount(0, $milk->getChildren());
 
         $meat = $result[3];
-        $this->assertEquals($meat->getTitle(), 'Meat');
-        $this->assertEquals(count($meat->getChildren()), 0);
+        static::assertSame('Meat', $meat->getTitle());
+        static::assertCount(0, $meat->getChildren());
 
         $oranges = $fruits->getChildren()->get(0);
-        $this->assertEquals($oranges->getTitle(), 'Oranges');
-        $this->assertEquals(count($oranges->getChildren()), 0);
+        static::assertSame('Oranges', $oranges->getTitle());
+        static::assertCount(0, $oranges->getChildren());
 
         $citrons = $fruits->getChildren()->get(1);
-        $this->assertEquals($citrons->getTitle(), 'Citrons');
-        $this->assertEquals(count($citrons->getChildren()), 0);
+        static::assertSame('Citrons', $citrons->getTitle());
+        static::assertCount(0, $citrons->getChildren());
 
-        $this->assertEquals(count($stack->queries), 2);
+        static::assertCount(2, $stack->queries);
     }
 
-    private function populate()
+    protected function getUsedEntityFixtures(): array
+    {
+        return [
+            self::CATEGORY,
+            self::ROOT_CATEGORY,
+        ];
+    }
+
+    private function populate(): void
     {
         $repo = $this->em->getRepository(self::ROOT_CATEGORY);
 
@@ -198,13 +216,5 @@ class TreeObjectHydratorTest extends BaseTestCaseORM
             ->persistAsLastChildOf($citrons, $fruits);
 
         $this->em->flush();
-    }
-
-    protected function getUsedEntityFixtures()
-    {
-        return array(
-            self::CATEGORY,
-            self::ROOT_CATEGORY,
-        );
     }
 }

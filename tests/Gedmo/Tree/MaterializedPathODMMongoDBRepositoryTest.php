@@ -1,293 +1,353 @@
 <?php
 
-namespace Gedmo\Tree;
+declare(strict_types=1);
+
+/*
+ * This file is part of the Doctrine Behavioral Extensions package.
+ * (c) Gediminas Morkevicius <gediminas.morkevicius@gmail.com> http://www.gediminasm.org
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Gedmo\Tests\Tree;
 
 use Doctrine\Common\EventManager;
-use Tool\BaseTestCaseMongoODM;
+use Doctrine\ODM\MongoDB\Iterator\CachingIterator;
+use Doctrine\ODM\MongoDB\Iterator\Iterator;
+use Gedmo\Exception\InvalidArgumentException;
+use Gedmo\Tests\Tool\BaseTestCaseMongoODM;
+use Gedmo\Tests\Tree\Fixture\Document\Category;
+use Gedmo\Tree\Document\MongoDB\Repository\MaterializedPathRepository;
+use Gedmo\Tree\TreeListener;
 
 /**
  * These are tests for Tree behavior
  *
  * @author Gustavo Falco <comfortablynumb84@gmail.com>
  * @author Gediminas Morkevicius <gediminas.morkevicius@gmail.com>
- * @link http://www.gediminasm.org
- * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
  */
-class MaterializedPathODMMongoDBRepositoryTest extends BaseTestCaseMongoODM
+final class MaterializedPathODMMongoDBRepositoryTest extends BaseTestCaseMongoODM
 {
-    const CATEGORY = "Tree\\Fixture\\Document\\Category";
-    /** @var $this->repo \Gedmo\Tree\Document\MongoDB\Repository\MaterializedPathRepository */
+    private const CATEGORY = Category::class;
+
+    /**
+     * @var MaterializedPathRepository
+     */
     protected $repo;
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $evm = new EventManager();
         $evm->addEventSubscriber(new TreeListener());
 
-        $this->getMockDocumentManager($evm);
+        $this->getDefaultDocumentManager($evm);
         $this->populate();
 
         $this->repo = $this->dm->getRepository(self::CATEGORY);
     }
 
-    /**
-     * @test
-     */
-    public function getRootNodes()
+    public function testGetRootNodes(): void
     {
+        /** @var CachingIterator $result */
         $result = $this->repo->getRootNodes('title');
 
-        $this->assertEquals(3, $result->count());
-        $this->assertEquals('Drinks', $result->getNext()->getTitle());
-        $this->assertEquals('Food', $result->getNext()->getTitle());
-        $this->assertEquals('Sports', $result->getNext()->getTitle());
+        static::assertSame(3, \iterator_count($result));
+        $result->rewind();
+
+        $result->rewind();
+
+        static::assertSame('Drinks', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Food', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Sports', $result->current()->getTitle());
     }
 
-    /**
-     * @test
-     */
-    public function getChildren()
+    public function testGetChildren(): void
     {
-        $root = $this->repo->findOneByTitle('Food');
+        $root = $this->repo->findOneBy(['title' => 'Food']);
 
         // Get all children from the root, including it
+        /** @var CachingIterator $result */
         $result = $this->repo->getChildren($root, false, 'title', 'asc', true);
 
-        $this->assertEquals(5, count($result));
-        $this->assertEquals('Carrots', $result->getNext()->getTitle());
-        $this->assertEquals('Food', $result->getNext()->getTitle());
-        $this->assertEquals('Fruits', $result->getNext()->getTitle());
-        $this->assertEquals('Potatoes', $result->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $result->getNext()->getTitle());
+        static::assertSame(5, \iterator_count($result));
+        $result->rewind();
+
+        $result->rewind();
+        static::assertSame('Carrots', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Food', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Fruits', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Potatoes', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Vegitables', $result->current()->getTitle());
 
         // Get all children from the root, NOT including it
+        /** @var CachingIterator $result */
         $result = $this->repo->getChildren($root, false, 'title', 'asc', false);
 
-        $this->assertEquals(4, count($result));
-        $this->assertEquals('Carrots', $result->getNext()->getTitle());
-        $this->assertEquals('Fruits', $result->getNext()->getTitle());
-        $this->assertEquals('Potatoes', $result->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $result->getNext()->getTitle());
+        static::assertSame(4, \iterator_count($result));
+        $result->rewind();
+        $result->rewind();
+        static::assertSame('Carrots', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Fruits', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Potatoes', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Vegitables', $result->current()->getTitle());
 
         // Get direct children from the root, including it
+        /** @var CachingIterator $result */
         $result = $this->repo->getChildren($root, true, 'title', 'asc', true);
 
-        $this->assertEquals(3, $result->count());
-        $this->assertEquals('Food', $result->getNext()->getTitle());
-        $this->assertEquals('Fruits', $result->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $result->getNext()->getTitle());
+        static::assertSame(3, \iterator_count($result));
+        $result->rewind();
+        $result->rewind();
+        static::assertSame('Food', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Fruits', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Vegitables', $result->current()->getTitle());
 
         // Get direct children from the root, NOT including it
+        /** @var CachingIterator $result */
         $result = $this->repo->getChildren($root, true, 'title', 'asc', false);
+        static::assertInstanceOf(Iterator::class, $result);
 
-        $this->assertEquals(2, $result->count());
-        $this->assertEquals('Fruits', $result->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $result->getNext()->getTitle());
+        static::assertSame(2, \iterator_count($result));
+        $result->rewind();
+        static::assertSame('Fruits', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Vegitables', $result->current()->getTitle());
 
         // Get ALL nodes
         $result = $this->repo->getChildren(null, false, 'title');
+        static::assertInstanceOf(Iterator::class, $result);
 
-        $this->assertEquals(9, $result->count());
-        $this->assertEquals('Best Whisky', $result->getNext()->getTitle());
-        $this->assertEquals('Carrots', $result->getNext()->getTitle());
-        $this->assertEquals('Drinks', $result->getNext()->getTitle());
-        $this->assertEquals('Food', $result->getNext()->getTitle());
-        $this->assertEquals('Fruits', $result->getNext()->getTitle());
-        $this->assertEquals('Potatoes', $result->getNext()->getTitle());
-        $this->assertEquals('Sports', $result->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $result->getNext()->getTitle());
-        $this->assertEquals('Whisky', $result->getNext()->getTitle());
+        static::assertSame(9, \iterator_count($result));
+        $result->rewind();
+        static::assertSame('Best Whisky', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Carrots', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Drinks', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Food', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Fruits', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Potatoes', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Sports', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Vegitables', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Whisky', $result->current()->getTitle());
 
         // Get ALL root nodes
         $result = $this->repo->getChildren(null, true, 'title');
+        static::assertInstanceOf(Iterator::class, $result);
 
-        $this->assertEquals(3, $result->count());
-        $this->assertEquals('Drinks', $result->getNext()->getTitle());
-        $this->assertEquals('Food', $result->getNext()->getTitle());
-        $this->assertEquals('Sports', $result->getNext()->getTitle());
+        static::assertSame(3, \iterator_count($result));
+        $result->rewind();
+        static::assertSame('Drinks', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Food', $result->current()->getTitle());
+        $result->next();
+        static::assertSame('Sports', $result->current()->getTitle());
     }
 
-    /**
-     * @test
-     */
-    public function getTree()
+    public function testGetTree(): void
     {
         $tree = $this->repo->getTree();
 
-        $this->assertEquals(9, $tree->count());
-        $this->assertEquals('Drinks', $tree->getNext()->getTitle());
-        $this->assertEquals('Whisky', $tree->getNext()->getTitle());
-        $this->assertEquals('Best Whisky', $tree->getNext()->getTitle());
-        $this->assertEquals('Food', $tree->getNext()->getTitle());
-        $this->assertEquals('Fruits', $tree->getNext()->getTitle());
-        $this->assertEquals('Vegitables', $tree->getNext()->getTitle());
-        $this->assertEquals('Carrots', $tree->getNext()->getTitle());
-        $this->assertEquals('Potatoes', $tree->getNext()->getTitle());
-        $this->assertEquals('Sports', $tree->getNext()->getTitle());
+        static::assertSame(9, \iterator_count($tree));
+        $tree->rewind();
+        static::assertSame('Drinks', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Whisky', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Best Whisky', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Food', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Fruits', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Vegitables', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Carrots', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Potatoes', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Sports', $tree->current()->getTitle());
 
         // Get a specific tree
         $roots = $this->repo->getRootNodes();
-        $tree = $this->repo->getTree($roots->getNext());
+        static::assertInstanceOf(Iterator::class, $roots);
+        $tree = $this->repo->getTree($roots->current());
 
-        $this->assertEquals(3, $tree->count());
-        $this->assertEquals('Drinks', $tree->getNext()->getTitle());
-        $this->assertEquals('Whisky', $tree->getNext()->getTitle());
-        $this->assertEquals('Best Whisky', $tree->getNext()->getTitle());
+        static::assertSame(3, \iterator_count($tree));
+        $tree->rewind();
+        static::assertSame('Drinks', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Whisky', $tree->current()->getTitle());
+        $tree->next();
+        static::assertSame('Best Whisky', $tree->current()->getTitle());
     }
 
-    /**
-     * @test
-     */
-    public function childrenHierarchy()
+    public function testChildrenHierarchy(): void
     {
         $tree = $this->repo->childrenHierarchy();
 
-        $this->assertEquals('Drinks', $tree[0]['title']);
-        $this->assertEquals('Whisky', $tree[0]['__children'][0]['title']);
-        $this->assertEquals('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
+        static::assertSame('Drinks', $tree[0]['title']);
+        static::assertSame('Whisky', $tree[0]['__children'][0]['title']);
+        static::assertSame('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
         $vegitablesChildren = $tree[1]['__children'][1]['__children'];
-        $this->assertEquals('Food', $tree[1]['title']);
-        $this->assertEquals('Fruits', $tree[1]['__children'][0]['title']);
-        $this->assertEquals('Vegitables', $tree[1]['__children'][1]['title']);
-        $this->assertEquals('Carrots', $vegitablesChildren[0]['title']);
-        $this->assertEquals('Potatoes', $vegitablesChildren[1]['title']);
-        $this->assertEquals('Sports', $tree[2]['title']);
+        static::assertSame('Food', $tree[1]['title']);
+        static::assertSame('Fruits', $tree[1]['__children'][0]['title']);
+        static::assertSame('Vegitables', $tree[1]['__children'][1]['title']);
+        static::assertSame('Carrots', $vegitablesChildren[0]['title']);
+        static::assertSame('Potatoes', $vegitablesChildren[1]['title']);
+        static::assertSame('Sports', $tree[2]['title']);
 
         // Tree of one specific root
         $roots = $this->repo->getRootNodes();
-        $drinks = $roots->getNext();
-        $food = $roots->getNext();
+        static::assertInstanceOf(Iterator::class, $roots);
+        $drinks = $roots->current();
+        $roots->next();
+        $food = $roots->current();
+        $roots->next();
         $tree = $this->repo->childrenHierarchy();
 
-        $this->assertEquals('Drinks', $tree[0]['title']);
-        $this->assertEquals('Whisky', $tree[0]['__children'][0]['title']);
-        $this->assertEquals('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
+        static::assertSame('Drinks', $tree[0]['title']);
+        static::assertSame('Whisky', $tree[0]['__children'][0]['title']);
+        static::assertSame('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
 
         // Tree of one specific root, with the root node
-        $tree = $this->repo->childrenHierarchy($drinks, false, array(), true);
+        $tree = $this->repo->childrenHierarchy($drinks, false, [], true);
 
-        $this->assertEquals('Drinks', $tree[0]['title']);
-        $this->assertEquals('Whisky', $tree[0]['__children'][0]['title']);
-        $this->assertEquals('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
+        static::assertSame('Drinks', $tree[0]['title']);
+        static::assertSame('Whisky', $tree[0]['__children'][0]['title']);
+        static::assertSame('Best Whisky', $tree[0]['__children'][0]['__children'][0]['title']);
 
         // Tree of one specific root only with direct children, without the root node
         $roots = $this->repo->getRootNodes();
         $tree = $this->repo->childrenHierarchy($food, true);
 
-        $this->assertEquals(2, count($tree));
-        $this->assertEquals('Fruits', $tree[0]['title']);
-        $this->assertEquals('Vegitables', $tree[1]['title']);
+        static::assertCount(2, $tree);
+        static::assertSame('Fruits', $tree[0]['title']);
+        static::assertSame('Vegitables', $tree[1]['title']);
 
         // Tree of one specific root only with direct children, with the root node
-        $tree = $this->repo->childrenHierarchy($food, true, array(), true);
+        $tree = $this->repo->childrenHierarchy($food, true, [], true);
 
-        $this->assertEquals(1, count($tree));
-        $this->assertEquals(2, count($tree[0]['__children']));
-        $this->assertEquals('Food', $tree[0]['title']);
-        $this->assertEquals('Fruits', $tree[0]['__children'][0]['title']);
-        $this->assertEquals('Vegitables', $tree[0]['__children'][1]['title']);
+        static::assertCount(1, $tree);
+        static::assertCount(2, $tree[0]['__children']);
+        static::assertSame('Food', $tree[0]['title']);
+        static::assertSame('Fruits', $tree[0]['__children'][0]['title']);
+        static::assertSame('Vegitables', $tree[0]['__children'][1]['title']);
 
         // HTML Tree of one specific root, without the root node
         $roots = $this->repo->getRootNodes();
-        $tree = $this->repo->childrenHierarchy($drinks, false, array('decorate' => true), false);
+        $tree = $this->repo->childrenHierarchy($drinks, false, ['decorate' => true], false);
 
-        $this->assertEquals('<ul><li>Whisky<ul><li>Best Whisky</li></ul></li></ul>', $tree);
+        static::assertSame('<ul><li>Whisky<ul><li>Best Whisky</li></ul></li></ul>', $tree);
 
         // HTML Tree of one specific root, with the root node
         $roots = $this->repo->getRootNodes();
-        $tree = $this->repo->childrenHierarchy($drinks, false, array('decorate' => true), true);
+        $tree = $this->repo->childrenHierarchy($drinks, false, ['decorate' => true], true);
 
-        $this->assertEquals('<ul><li>Drinks<ul><li>Whisky<ul><li>Best Whisky</li></ul></li></ul></li></ul>', $tree);
+        static::assertSame('<ul><li>Drinks<ul><li>Whisky<ul><li>Best Whisky</li></ul></li></ul></li></ul>', $tree);
     }
 
-    public function testChildCount()
+    public function testChildCount(): void
     {
         // Count all
         $count = $this->repo->childCount();
 
-        $this->assertEquals(9, $count);
+        static::assertSame(9, $count);
 
         // Count all, but only direct ones
         $count = $this->repo->childCount(null, true);
 
-        $this->assertEquals(3, $count);
+        static::assertSame(3, $count);
 
         // Count food children
-        $food = $this->repo->findOneByTitle('Food');
+        $food = $this->repo->findOneBy(['title' => 'Food']);
         $count = $this->repo->childCount($food);
 
-        $this->assertEquals(4, $count);
+        static::assertSame(4, $count);
 
         // Count food children, but only direct ones
         $count = $this->repo->childCount($food, true);
 
-        $this->assertEquals(2, $count);
+        static::assertSame(2, $count);
     }
 
-    /**
-     * @expectedException \Gedmo\Exception\InvalidArgumentException
-     */
-    public function testChildCount_ifAnObjectIsPassedWhichIsNotAnInstanceOfTheEntityClassThrowException()
+    public function testChildCountIfAnObjectIsPassedWhichIsNotAnInstanceOfTheEntityClassThrowException(): void
     {
+        $this->expectException(InvalidArgumentException::class);
         $this->repo->childCount(new \DateTime());
     }
 
-    /**
-     * @expectedException \Gedmo\Exception\InvalidArgumentException
-     */
-    public function testChildCount_ifAnObjectIsPassedIsAnInstanceOfTheEntityClassButIsNotHandledByUnitOfWorkThrowException()
+    public function testChildCountIfAnObjectIsPassedIsAnInstanceOfTheEntityClassButIsNotHandledByUnitOfWorkThrowException(): void
     {
+        $this->expectException(InvalidArgumentException::class);
         $this->repo->childCount($this->createCategory());
     }
 
-    public function test_changeChildrenIndex()
+    public function testChangeChildrenIndex(): void
     {
         $childrenIndex = 'myChildren';
         $this->repo->setChildrenIndex($childrenIndex);
 
         $tree = $this->repo->childrenHierarchy();
 
-        $this->assertInternalType('array', $tree[0][$childrenIndex]);
+        static::assertIsArray($tree[0][$childrenIndex]);
     }
 
-    protected function getUsedEntityFixtures()
-    {
-        return array(
-            self::CATEGORY,
-        );
-    }
-
-    public function createCategory()
+    public function createCategory(): Category
     {
         $class = self::CATEGORY;
 
         return new $class();
     }
 
-    private function populate()
+    protected function getUsedEntityFixtures(): array
+    {
+        return [
+            self::CATEGORY,
+        ];
+    }
+
+    private function populate(): void
     {
         $root = $this->createCategory();
-        $root->setTitle("Food");
+        $root->setTitle('Food');
 
         $root2 = $this->createCategory();
-        $root2->setTitle("Sports");
+        $root2->setTitle('Sports');
 
         $child = $this->createCategory();
-        $child->setTitle("Fruits");
+        $child->setTitle('Fruits');
         $child->setParent($root);
 
         $child2 = $this->createCategory();
-        $child2->setTitle("Vegitables");
+        $child2->setTitle('Vegitables');
         $child2->setParent($root);
 
         $childsChild = $this->createCategory();
-        $childsChild->setTitle("Carrots");
+        $childsChild->setTitle('Carrots');
         $childsChild->setParent($child2);
 
         $potatoes = $this->createCategory();
-        $potatoes->setTitle("Potatoes");
+        $potatoes->setTitle('Potatoes');
         $potatoes->setParent($child2);
 
         $drinks = $this->createCategory();
